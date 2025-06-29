@@ -16,6 +16,9 @@ fi
 # Source the configuration file
 source "$CONFIG_FILE"
 
+# Convert PROJECT_NAME to lowercase for env file
+PROJECT_NAME_LOWER=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]')
+
 # Function to show step information
 show_step() {
     echo -e "${BLUE}[DEPLOY]${NC} $1"
@@ -75,43 +78,46 @@ fi
 
 # Remote Server Deployment
 show_step "Deploying to production server..."
-ssh -A root@${SERVER_IP} << EOF
-    cd ${DOMAIN} || exit 1
-    
-    # Check and update remote URL if needed
-    echo "Checking Git remote URL..."
-    current_url=\$(git remote get-url origin)
-    if [[ \$current_url == https* ]]; then
-        echo "Updating Git remote to use SSH..."
-        ssh_url=\$(echo \$current_url | sed 's|https://github.com/|git@github.com:|')
-        git remote set-url origin \$ssh_url
-    fi
-    
-    echo "Pulling latest changes..."
-    git pull origin main || exit 1
 
-    echo "Loading environment variables..."
-    source /root/.env.${PROJECT_NAME,,} || exit 1
+# Create the remote script with proper variable substitution
+REMOTE_SCRIPT="
+cd $DOMAIN || exit 1
 
-    echo "Installing dependencies..."
-    npm install || exit 1
+echo 'Checking Git remote URL...'
+current_url=\$(git remote get-url origin)
+if [[ \$current_url == https* ]]; then
+    echo 'Updating Git remote to use SSH...'
+    ssh_url=\$(echo \$current_url | sed 's|https://github.com/|git@github.com:|')
+    git remote set-url origin \$ssh_url
+fi
 
-    echo "Building application..."
-    npm run build || exit 1
+echo 'Pulling latest changes...'
+git pull origin main || exit 1
 
-    echo "Restarting PM2 process..."
-    pm2 delete ${DOMAIN} 2>/dev/null || true
-    pm2 start npm --name "${DOMAIN}" -- start -- -p ${PORT} || exit 1
-    pm2 save || exit 1
+echo 'Loading environment variables...'
+source /root/.env.$PROJECT_NAME_LOWER || exit 1
 
-    # Verify the application is running
-    echo "Verifying application status..."
-    sleep 5
-    if ! curl -s -f http://localhost:${PORT} > /dev/null; then
-        echo "Application failed to start properly"
-        exit 1
-    fi
-EOF
+echo 'Installing dependencies...'
+npm install || exit 1
+
+echo 'Building application...'
+npm run build || exit 1
+
+echo 'Restarting PM2 process...'
+pm2 delete $DOMAIN 2>/dev/null || true
+pm2 start npm --name \"$DOMAIN\" -- start -- -p $PORT || exit 1
+pm2 save || exit 1
+
+echo 'Verifying application status...'
+sleep 5
+if ! curl -s -f http://localhost:$PORT > /dev/null; then
+    echo 'Application failed to start properly'
+    exit 1
+fi
+"
+
+# Execute the remote script
+ssh -A root@"${SERVER_IP}" "${REMOTE_SCRIPT}"
 
 check_status "Failed to deploy to production server"
 
