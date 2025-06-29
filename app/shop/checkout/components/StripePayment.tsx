@@ -128,7 +128,7 @@ const StripePayment = ({
       elements,
       clientSecret: clientSecret ?? '',
       confirmParams: {
-        return_url: `http://www.famousince.com/success?amount=${amount}&email=${email}&shippingAddress=${shippingAddress}`,
+        return_url: `/shop/success?amount=${amount}`,
         receipt_email: email,
         shipping: {
           name: customerName,

@@ -37,7 +37,7 @@ echo "🔄 Testing and reloading Nginx..."
 nginx -t && systemctl reload nginx
 
 echo "✅ Nginx configuration completed!"
-echo "⚠️  Next step: Run ./scripts/enable-ssl.sh to set up SSL"
+echo "⚠️  Next step: Run ./scripts/4_enable-ssl.sh to set up SSL"
 EOF
 
 echo "🎉 Nginx configured for $DOMAIN" 
