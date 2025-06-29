@@ -6,6 +6,16 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Load configuration
+CONFIG_FILE="scripts/config.env.project"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}[ERROR]${NC} Configuration file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+# Source the configuration file
+source "$CONFIG_FILE"
+
 # Function to show step information
 show_step() {
     echo -e "${BLUE}[DEPLOY]${NC} $1"
@@ -65,23 +75,23 @@ fi
 
 # Remote Server Deployment
 show_step "Deploying to production server..."
-ssh -A getvalerio << 'EOF'
-    cd TipsyToGoBar.com || exit 1
+ssh -A root@${SERVER_IP} << EOF
+    cd ${DOMAIN} || exit 1
     
     # Check and update remote URL if needed
     echo "Checking Git remote URL..."
-    current_url=$(git remote get-url origin)
-    if [[ $current_url == https* ]]; then
+    current_url=\$(git remote get-url origin)
+    if [[ \$current_url == https* ]]; then
         echo "Updating Git remote to use SSH..."
-        ssh_url=$(echo $current_url | sed 's|https://github.com/|git@github.com:|')
-        git remote set-url origin $ssh_url
+        ssh_url=\$(echo \$current_url | sed 's|https://github.com/|git@github.com:|')
+        git remote set-url origin \$ssh_url
     fi
     
     echo "Pulling latest changes..."
     git pull origin main || exit 1
 
     echo "Loading environment variables..."
-    source /root/.env.tipsytogobar || exit 1
+    source /root/.env.${PROJECT_NAME,,} || exit 1
 
     echo "Installing dependencies..."
     npm install || exit 1
@@ -90,14 +100,14 @@ ssh -A getvalerio << 'EOF'
     npm run build || exit 1
 
     echo "Restarting PM2 process..."
-    pm2 delete TipsyToGoBar.com 2>/dev/null || true
-    pm2 start npm --name "TipsyToGoBar.com" -- start -- -p 3001 || exit 1
+    pm2 delete ${DOMAIN} 2>/dev/null || true
+    pm2 start npm --name "${DOMAIN}" -- start -- -p ${PORT} || exit 1
     pm2 save || exit 1
 
     # Verify the application is running
     echo "Verifying application status..."
     sleep 5
-    if ! curl -s -f http://localhost:3001 > /dev/null; then
+    if ! curl -s -f http://localhost:${PORT} > /dev/null; then
         echo "Application failed to start properly"
         exit 1
     fi
