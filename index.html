@@ -28,11 +28,29 @@
     <meta name="twitter:image" content="https://famousince.com/twitter-image.png" />
 
     <!-- Theme Color -->
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#000000" />
     
     <!-- Fonts -->
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500;700&display=swap");
+      
+      /* Override default link colors */
+      :root {
+        color-scheme: dark;
+      }
+      
+      a {
+        color: white !important;
+        text-decoration: none;
+      }
+      
+      a:visited {
+        color: white !important;
+      }
+      
+      a:hover {
+        opacity: 0.8;
+      }
     </style>
     <link href="tailwind.css" rel="stylesheet" />
   </head>
