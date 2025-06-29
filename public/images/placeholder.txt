@@ -1,0 +1,7 @@
+Please add product images in this directory with the following names:
+- classic-tee.jpg
+- vintage-wash.jpg
+- oversized-fit.jpg
+- graphic-print.jpg
+
+Images should be square format (1:1 aspect ratio) for best results. 
