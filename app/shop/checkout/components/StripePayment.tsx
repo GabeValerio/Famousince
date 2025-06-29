@@ -128,7 +128,7 @@ const StripePayment = ({
       elements,
       clientSecret: clientSecret ?? '',
       confirmParams: {
-        return_url: `/shop/success?amount=${amount}`,
+        return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/shop/success?amount=${amount}`,
         receipt_email: email,
         shipping: {
           name: customerName,
