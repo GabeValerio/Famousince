@@ -3,11 +3,7 @@
 import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -130,18 +126,27 @@ function LoginForm() {
       return;
     }
 
-    console.log("Attempting to sign in...");
-    const result = await signIn('credentials', {
-      redirect: false,
-      email,
-      password,
-    });
+    try {
+      console.log("Attempting to sign in...");
+      const result = await signIn('credentials', {
+        redirect: false,
+        email,
+        password,
+        callbackUrl: '/'
+      });
 
-    if (result?.error) {
-      console.error("Error logging in:", result.error);
-      alert("Error logging in. Please try again.");
+      if (result?.error) {
+        console.error("Error details:", result);
+        if (result.error === "CredentialsSignin") {
+          alert("Invalid email or password. Please try again.");
+        } else {
+          alert("An error occurred during sign in. Please try again.");
+        }
+      }
+    } catch (error) {
+      console.error("Sign in error:", error);
+      alert("An unexpected error occurred. Please try again.");
     }
-    // No else needed - useEffect will handle the redirect once session is updated
   };
 
   return (
