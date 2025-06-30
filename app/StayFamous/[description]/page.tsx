@@ -45,15 +45,21 @@ const ImageContainer = styled.div`
   margin-bottom: 24px;
 `
 
-const TextOverlay = styled.div<{ $position: { top: number; left: number; fontSize: number }, $verticalOffset: number }>`
+const TextOverlay = styled.div<{ $position: { top: number; left: number; fontSize: number }, $verticalOffset: number, $isMobile: boolean }>`
   position: absolute;
-  top: ${props => props.$position.top + props.$verticalOffset}%;
+  top: ${props => {
+    const baseTop = props.$position.top + props.$verticalOffset;
+    return props.$isMobile ? `${baseTop * 1.00}%` : `${baseTop}%`;
+  }};
   left: ${props => props.$position.left}%;
   transform: translate(-50%, -50%);
   z-index: 10;
   text-align: center;
   color: white;
-  font-size: ${props => props.$position.fontSize}px;
+  font-size: ${props => {
+    const baseFontSize = props.$position.fontSize;
+    return props.$isMobile ? `${baseFontSize * 0.6}px` : `${baseFontSize}px`;
+  }};
   font-weight: bold;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
   font-family: 'Chalkduster', cursive;
@@ -161,6 +167,7 @@ function StayFamousContent({ description }: { description: string }) {
   const [errorMessage, setErrorMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const imageContainerRef = React.useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     setCustomLine(description);
@@ -172,6 +179,17 @@ function StayFamousContent({ description }: { description: string }) {
       },
     });
   }, [description]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleTextChange = useCallback((newText: string) => {
     const upperText = newText.toUpperCase();
@@ -311,12 +329,14 @@ function StayFamousContent({ description }: { description: string }) {
             <TextOverlay 
               $position={textPreset.topLine}
               $verticalOffset={selectedModel.verticalOffset}
+              $isMobile={isMobile}
             >
               {textPreset.topLine.text}
             </TextOverlay>
             <TextOverlay 
               $position={textPreset.bottomLine}
               $verticalOffset={selectedModel.verticalOffset}
+              $isMobile={isMobile}
             >
               {textPreset.bottomLine.text}
             </TextOverlay>
