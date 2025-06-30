@@ -13,9 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronRight, ChevronDown, Pencil, Eye, Tag, Box } from 'lucide-react';
+import { ChevronRight, ChevronDown, Pencil, Eye, Tag, Box, Download } from 'lucide-react';
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import Link from "next/link";
+import { downloadFamousPreset } from "@/app/utils/downloadFamousPreset";
 
 interface Product {
   id: string;
@@ -383,10 +384,22 @@ const ProductManagement: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => product.description && downloadFamousPreset(product.description).catch(console.error)}
+                        className="flex-1 border-white/20 bg-black hover:bg-white hover:text-black text-white transition-colors"
+                        disabled={!product.description}
+                      >
+                        <Download className="h-4 w-4 mr-1" /> Famous Preset
+                      </Button>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleEditProduct(product)}
                         className="flex-1 border-white/20 bg-black hover:bg-white hover:text-black text-white transition-colors"
                       >
-                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                        Edit
                       </Button>
                       <Button
                         variant="outline"
@@ -464,6 +477,15 @@ const ProductManagement: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => product.description && downloadFamousPreset(product.description).catch(console.error)}
+                        className="border-white/20 bg-black hover:bg-white hover:text-black text-white transition-colors"
+                        disabled={!product.description}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

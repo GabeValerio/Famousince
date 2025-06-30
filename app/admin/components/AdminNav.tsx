@@ -1,14 +1,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarContext';
-import Image from 'next/image';
 
 export function AdminNav() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   const navItems = [
-    { name: 'Overview', href: '/admin/overview' },
     { name: 'Store', href: '/admin/store' },
     { name: 'Site Configuration', href: '/admin/site-config' },
   ];
@@ -35,19 +33,18 @@ export function AdminNav() {
       border-r border-white/20
     `}>
       <div className="h-full flex flex-col w-64">
-        {/* Logo Section - Only visible on mobile */}
+        {/* Title Section - Only visible on mobile */}
         <div className="flex justify-center w-full pt-6 pb-2 md:hidden">
-          <Image
-            src="/contact/famous-logo.png"
-            alt="Famous Since logo"
-            width={70}
-            height={70}
-            className="object-contain"
-          />
+          <h1 
+            className="text-white text-2xl"
+            style={{ fontFamily: 'Chalkduster, fantasy' }}
+          >
+            FAMOUS SINCE
+          </h1>
         </div>
         
         <div className="flex-1 p-6 md:p-8 pt-2 md:pt-6">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex justify-center mb-8">
             <h2 
               className="text-white text-xl"
               style={{ fontFamily: 'Chalkduster, fantasy' }}

@@ -95,7 +95,7 @@ function RegisterForm() {
                   Full Name
                 </Label>
                 <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/60" />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white" />
                   <Input
                     id="name"
                     type="text"
@@ -113,7 +113,7 @@ function RegisterForm() {
                   Email Address
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/60" />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white" />
                   <Input
                     id="email"
                     type="email"
@@ -131,7 +131,7 @@ function RegisterForm() {
                   Password
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/60 z-20" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white z-20" />
                   <PasswordInput
                     id="password"
                     placeholder="Create a password"

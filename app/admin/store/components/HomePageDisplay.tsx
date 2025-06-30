@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import Image from "next/image";
-import { Box, Save, Shuffle } from 'lucide-react';
+import { Box, Save, Shuffle, Download } from 'lucide-react';
+import { downloadFamousPreset } from "@/app/utils/downloadFamousPreset";
 
 interface Product {
   id: string;
@@ -255,6 +256,25 @@ const HomePageDisplay: React.FC = () => {
                       <Box className="h-8 w-8 text-white/40" />
                     </div>
                   )}
+                </div>
+              )}
+
+              {selectedProducts[index] && !randomPositions.includes(index) && (
+                <div className="flex justify-end mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const product = products.find(p => p.id === selectedProducts[index]);
+                      if (product?.description) {
+                        downloadFamousPreset(product.description).catch(console.error);
+                      }
+                    }}
+                    className="w-full border-white/20 bg-black hover:bg-white hover:text-black text-white transition-colors"
+                    disabled={!products.find(p => p.id === selectedProducts[index])?.description}
+                  >
+                    <Download className="h-4 w-4 mr-1" /> Famous Preset
+                  </Button>
                 </div>
               )}
             </div>

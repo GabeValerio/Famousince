@@ -25,13 +25,11 @@ export default function SiteConfigPage(): JSX.Element {
       const result = await response.json();
       
       if (!response.ok) {
-        console.error('Error fetching configs:', result.error);
         return;
       }
       
       setConfigs(result.data || []);
     } catch (error) {
-      console.error('Error in fetchConfigs:', error);
     } finally {
       setIsLoading(false);
     }
@@ -51,11 +49,6 @@ export default function SiteConfigPage(): JSX.Element {
       const result = await response.json();
       
       if (!response.ok) {
-        console.error('Error updating config:', {
-          status: response.status,
-          statusText: response.statusText,
-          result
-        });
         alert(`Error updating configuration: ${result.error}`);
         return;
       }
@@ -77,7 +70,6 @@ export default function SiteConfigPage(): JSX.Element {
         }
       }
     } catch (error) {
-      console.error('Error in updateConfig:', error);
       alert('Error updating configuration');
     } finally {
       setIsUpdating(null);
