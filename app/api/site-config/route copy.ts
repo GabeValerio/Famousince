@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/authOptions';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function GET() {
   try {
@@ -11,25 +13,19 @@ export async function GET() {
       .order('key');
 
     if (error) {
-      console.error('Database error:', error);
+      console.error('GET Error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('GET Catch Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { key, value } = body;
 
@@ -43,12 +39,12 @@ export async function POST(request: NextRequest) {
     // First check if the config exists
     const { data: existingConfig, error: checkError } = await supabase
       .from('site_config')
-      .select('*')
+      .select('id')
       .eq('key', key)
-      .single();
+      .maybeSingle();
 
     if (checkError) {
-      console.error('Database error:', checkError);
+      console.error('Check Error:', checkError);
       return NextResponse.json({ error: checkError.message }, { status: 500 });
     }
 
@@ -60,39 +56,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the config
-    let { data, error: updateError } = await supabase
+    const { data, error: updateError } = await supabase
       .from('site_config')
       .update({ 
         value,
         updated_at: new Date().toISOString()
       })
-      .eq('id', existingConfig.id)
+      .eq('key', key)
       .select()
       .maybeSingle();
 
     if (updateError) {
-      console.error('Database error:', updateError);
+      console.error('Update Error:', updateError);
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
     if (!data) {
-      // Verify the update
-      const { data: verifyData, error: verifyError } = await supabase
-        .from('site_config')
-        .select('*')
-        .eq('id', existingConfig.id)
-        .single();
-        
-      if (verifyError) {
-        console.error('Database error:', verifyError);
-        return NextResponse.json({ error: 'Failed to verify update' }, { status: 500 });
-      }
-      
-      if (!verifyData) {
-        return NextResponse.json({ error: 'Failed to update configuration' }, { status: 500 });
-      }
-      
-      data = verifyData;
+      return NextResponse.json(
+        { error: 'Failed to update configuration' },
+        { status: 500 }
+      );
     }
 
     let message = 'Configuration updated successfully';
@@ -108,7 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('POST Catch Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

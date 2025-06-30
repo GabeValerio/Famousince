@@ -69,7 +69,7 @@ const ImageContainer = styled.div`
 
 const StyledImage = styled(Image)`
   width: 100%;
-  height: 100%;
+  height: auto;
   object-fit: contain;
   display: block;
   background: white;
@@ -562,6 +562,7 @@ export default function ImageGenerator() {
             alt={selectedModel.name}
             width={FIXED_WIDTH - 32}
             height={FIXED_HEIGHT - 32}
+            style={{ width: '100%', height: 'auto' }}
             priority
           />
           {boundingBox && showBoundingBox && (

@@ -61,7 +61,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`!bg-new-white text-foreground ${inter.className}`}>
+      <body className={`bg-black text-foreground ${inter.className}`}>
         <StyledComponentsRegistry>
           <Providers>
             <ClientLayout>

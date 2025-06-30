@@ -109,6 +109,8 @@ module.exports = {
         },
       },
       fontFamily: {
+        display: ['Chalkduster', 'fantasy'],
+        main: ['Roboto', 'Helvetica', 'sans-serif'],
         "buttons-and-2nd-headers": "var(--buttons-and-2nd-headers-font-family)",
         CTA: "var(--CTA-font-family)",
         "customer-questions": "var(--customer-questions-font-family)",

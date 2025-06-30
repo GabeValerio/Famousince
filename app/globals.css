@@ -12,155 +12,48 @@
 
 @layer base {
   :root {
-      --app-background: black;
-      --berry-hill: rgba(69, 29, 65, 1);
-      --blue-purp: rgba(149, 149, 210, 1);
-      --bright-purple: rgba(208, 188, 255, 1);
-      --header-height: 80px;
-      --footer-height: 100px;
-      --buttons-and-2nd-headers-font-family: "Chalkduster", fantasy;
-      --buttons-and-2nd-headers-font-size: 20px;
-      --buttons-and-2nd-headers-font-style: normal;
-      --buttons-and-2nd-headers-font-weight: 400;
-      --buttons-and-2nd-headers-letter-spacing: 0px;
-      --buttons-and-2nd-headers-line-height: normal;
-      --cards: 0px 4px 10px 0px rgba(255, 255, 255, 0.24);
-      --chat-box-dark-mode: black;
-      --chat-box-lavender: rgba(165, 127, 178, 1);
-      --chat-box-purp: rgba(80, 80, 137, 1);
-      --CTA-font-family: "Chalkduster", fantasy;
-      --CTA-font-size: 64px;
-      --CTA-font-style: normal;
-      --CTA-font-weight: 400;
-      --CTA-letter-spacing: 0px;
-      --CTA-line-height: normal;
-      --customer-questions-font-family: "Chalkduster", fantasy;
-      --customer-questions-font-size: 15px;
-      --customer-questions-font-style: normal;
-      --customer-questions-font-weight: 400;
-      --customer-questions-letter-spacing: 0px;
-      --customer-questions-line-height: normal;
-      --dark-green: rgba(20, 85, 0, 1);
-      --darker-mystic-purple: black;
-      --deactivated-button: rgba(220, 217, 228, 1);
-      --deactivated-button-text: rgba(86, 86, 86, 1);
-      --dm-red: rgba(255, 59, 59, 1);
-      --extra-faded-gray: rgba(217, 217, 217, 0.1);
-      --extra-light-gray: rgba(236, 236, 236, 1);
-      --faded-gray: rgba(217, 217, 217, 0.2);
-      --faded-gray-on-white: rgba(226, 226, 226, 0.7);
-      --faded-mauve: rgba(252, 139, 243, 0.75);
-      --faded-purp: rgba(80, 80, 137, 0.25);
-      --green-text-on-gray-on-white: rgba(20, 85, 0, 1);
-      --insights-2: rgba(107, 79, 169, 1);
-      --insights-3: rgba(182, 162, 226, 1);
-      --insights-4: rgba(212, 203, 232, 1);
-      --insights-5: rgba(244, 238, 255, 1);
-      --jaded-magenta: rgba(166, 90, 159, 0.7);
-      --kaushan-script-font-family: "Kaushan Script", Helvetica;
-      --kaushan-script-font-size: 40px;
-      --kaushan-script-font-style: normal;
-      --kaushan-script-font-weight: 400;
-      --kaushan-script-letter-spacing: 0px;
-      --kaushan-script-line-height: normal;
-      --kaushan-script0-BOLD-GET-TIPSY-FONT-font-family: "Kaushan Script", Helvetica;
-      --kaushan-script0-BOLD-GET-TIPSY-FONT-font-size: 64px;
-      --kaushan-script0-BOLD-GET-TIPSY-FONT-font-style: normal;
-      --kaushan-script0-BOLD-GET-TIPSY-FONT-font-weight: 400;
-      --kaushan-script0-BOLD-GET-TIPSY-FONT-letter-spacing: 0.10000000149011612px;
-      --kaushan-script0-BOLD-GET-TIPSY-FONT-line-height: 20px;
-      --lavendar-rose: rgba(203, 137, 198, 1);
-      --lilac-bush: rgba(156, 126, 213, 1);
-      --lime-green: rgba(117, 249, 76, 1);
-      --lime-green-on-gray-on-white: rgba(96, 225, 56, 1);
-      --logo-font-family: "Meow Script", Helvetica;
-      --logo-font-size: 40px;
-      --logo-font-style: normal;
-      --logo-font-weight: 400;
-      --logo-letter-spacing: 0px;
-      --logo-line-height: normal;
-      --magenta: rgba(187, 149, 183, 1);
-      --main-app-font-font-family: "Roboto", Helvetica;
-      --main-app-font-font-size: 16px;
-      --main-app-font-font-style: normal;
-      --main-app-font-font-weight: 700;
-      --main-app-font-letter-spacing: 0px;
-      --main-app-font-line-height: normal;
-      --main-buttons: 0px 1px 6px 0px rgba(255, 255, 255, 0.3);
-      --mid-green: rgba(106, 184, 82, 1);
-      --mystic-purple: rgba(56, 30, 114, 1);
-      --new-black: black;
-      --new-dark-gray: rgba(34, 34, 34, 1);
-      --new-white: white;
-      --orange: rgba(243, 163, 44, 1);
-      --paragraph-text-font-family: "Chalkduster", fantasy;
-      --paragraph-text-font-size: 12px;
-      --paragraph-text-font-style: normal;
-      --paragraph-text-font-weight: 400;
-      --paragraph-text-letter-spacing: 0px;
-      --paragraph-text-line-height: normal;
-      --periwinkle: rgba(142, 159, 188, 1);
-      --plum: rgba(189, 104, 182, 1);
-      --red: rgba(229, 21, 21, 1);
-      --text-box: rgba(226, 226, 226, 0.7);
-      --text-placeholder-on-gray: rgba(179, 179, 179, 1);
-      --text-placeholder-on-gray-on-white: rgba(115, 115, 115, 1);
-      --tipsy-black: black;
-      --tipsy-button-text-purple: rgba(56, 30, 114, 1);
-      --tipsy-chat-box-gray: rgba(217, 217, 217, 0.6);
-      --tipsy-chat-box-magenta: rgba(166, 90, 159, 0.8);
-      --tipsy-faded-mauve: rgba(252, 139, 243, 0.75);
-      --tipsy-grey-dark-button: black;
-      --tipsy-grey-light-button: rgba(236, 230, 240, 1);
-      --tipsy-heart: initial;
-      --tipsy-lavendar-rose: rgba(252, 139, 243, 1);
-      --tipsy-light-orchid: rgba(230, 156, 222, 1);
-      --tipsy-lilac-bush: rgba(156, 126, 213, 1);
-      --tipsy-purple-action: rgba(208, 188, 255, 1);
-      --tipsy-purple-text: rgba(56, 30, 114, 1);
-      --tipsy-white-text: white;
-      --tokens-bronze-medal: rgba(196, 163, 98, 1);
-      --tokens-color-button-background-primary: rgba(208, 188, 255, 1);
-      --tokens-color-button-label-primary: rgba(56, 30, 114, 1);
-      --tokens-color-surface-primary: black;
-      --tokens-color-text-action-secondary: rgba(208, 188, 255, 1);
-      --tokens-color-text-white-primary: white;
-      --tokens-gold-medal: rgba(244, 224, 119, 1);
-      --tokens-purple-tag: rgba(114, 103, 121, 1);
-      --tokens-silver-medal: rgba(184, 183, 182, 1);
-      --tokens-spacing-system-spacimg-xl: 6px;
-      --tokens-spacing-system-spacing-l: 5px;
-      --tokens-spacing-system-spacing-m: 4px;
-      --tokens-spacing-system-spacing-none: 0px;
-      --tokens-spacing-system-spacing-sm: 3px;
-      --tokens-spacing-system-spacing-xs: 2px;
-      --tokens-spacing-system-spacing-xxs: 1px;
-      --vm-dark-gray: rgba(101, 101, 101, 1);
-      --vm-white: white;
-      --website-accents: rgba(106, 81, 109, 0.7);
-      --yellow: rgba(239, 234, 21, 1);
-      --yellow-text-on-white: rgba(147, 150, 3, 1);
-      --background: black;
-      --foreground: white;
-      --border: rgba(255, 255, 255, 0.2);
-      --input: rgba(255, 255, 255, 0.2);
-      --ring: rgba(255, 255, 255, 0.4);
-      --primary: white;
-      --primary-foreground: black;
-      --secondary: rgba(255, 255, 255, 0.1);
-      --secondary-foreground: white;
-      --muted: rgba(255, 255, 255, 0.1);
-      --muted-foreground: rgba(255, 255, 255, 0.5);
-      --accent: rgba(255, 255, 255, 0.2);
-      --accent-foreground: white;
-      --destructive: rgba(255, 59, 59, 1);
-      --destructive-foreground: white;
-      --card: transparent;
-      --card-foreground: white;
-      --popover: black;
-      --popover-foreground: white;
-      --radius: 0.5rem;
-    }
+    /* Layout */
+    --header-height: 80px;
+    --footer-height: 100px;
+
+    /* Colors - Core */
+    --color-background: black;
+    --color-foreground: white;
+    
+    /* Colors - UI States */
+    --color-error: #ef4444;
+    --color-error-light: rgba(239, 68, 68, 0.2);
+    --color-success: #22C55E;
+    --color-success-light: rgba(34, 197, 94, 0.1);
+    
+    /* Colors - Grays */
+    --color-gray-50: #f9fafb;
+    --color-gray-100: #f3f4f6;
+    --color-gray-200: #e5e7eb;
+    --color-gray-300: #d1d5db;
+    --color-gray-400: #9ca3af;
+    --color-gray-500: #6b7280;
+    --color-gray-600: #4b5563;
+    --color-gray-700: #374151;
+    
+    /* Colors - UI Elements */
+    --color-border: rgba(255, 255, 255, 0.2);
+    --color-input: rgba(255, 255, 255, 0.2);
+    --color-muted: rgba(255, 255, 255, 0.1);
+    --color-muted-foreground: rgba(255, 255, 255, 0.5);
+    
+    /* Typography */
+    --font-main: "Roboto", Helvetica;
+    --font-display: "Chalkduster", fantasy;
+    --font-logo: "Meow Script", Helvetica;
+    
+    /* Shadows */
+    --shadow-card: 0px 4px 10px 0px rgba(255, 255, 255, 0.24);
+    --shadow-button: 0px 1px 6px 0px rgba(255, 255, 255, 0.3);
+    
+    /* Border Radius */
+    --radius: 0.5rem;
+  }
  
   .dark {
     --background: black;
@@ -177,14 +70,14 @@
     --muted-foreground: rgba(255, 255, 255, 0.5);
     --accent: rgba(255, 255, 255, 0.2);
     --accent-foreground: white;
-    --destructive: rgba(255, 59, 59, 1);
+    --destructive: #ef4444;
     --destructive-foreground: white;
     --border: rgba(255, 255, 255, 0.2);
     --input: rgba(255, 255, 255, 0.2);
     --ring: rgba(255, 255, 255, 0.4);
   }
 
-  /* Add link styles */
+  /* Link styles */
   a {
     @apply text-white hover:text-white/80;
     text-decoration: none;
@@ -206,7 +99,7 @@
   }
 }
 
-
+/* Utility Classes */
 .feature-icon {
   width: 64px;
   height: 64px;
@@ -228,10 +121,11 @@
   .btn-primary {
     @apply bg-primary text-new-black font-raleway py-4 px-8 rounded-lg shadow-button hover:bg-opacity-90 transition-all;
   }
+  
   .shadow-button {
-    /* Add your custom styles here */
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-button);
   }
+  
   .font-raleway {
     font-family: 'Raleway', sans-serif;
   }

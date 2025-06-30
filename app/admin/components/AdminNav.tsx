@@ -63,7 +63,7 @@ export function AdminNav() {
                 onClick={handleNavClick}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   pathname === item.href
-                    ? 'bg-white text-black'
+                    ? 'bg-white !text-black'
                     : 'text-white hover:bg-white/10'
                 }`}
               >

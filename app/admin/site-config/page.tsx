@@ -51,7 +51,11 @@ export default function SiteConfigPage(): JSX.Element {
       const result = await response.json();
       
       if (!response.ok) {
-        console.error('Error updating config:', result.error);
+        console.error('Error updating config:', {
+          status: response.status,
+          statusText: response.statusText,
+          result
+        });
         alert(`Error updating configuration: ${result.error}`);
         return;
       }

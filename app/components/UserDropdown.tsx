@@ -36,19 +36,19 @@ export function UserDropdown({ isOpen, onClose, userName }: UserDropdownProps) {
       className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50"
     >
       {userName && (
-        <div className="px-4 py-2 text-sm text-gray-700 border-b">
+        <div className="px-4 py-2 text-sm !text-black border-b">
           Hi {userName}!
         </div>
       )}
       <a
         href="/admin/overview"
-        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+        className="block px-4 py-2 text-sm !text-black hover:bg-gray-100"
       >
         Dashboard
       </a>
       <button
         onClick={() => signOut()}
-        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+        className="w-full text-left px-4 py-2 text-sm !text-black hover:bg-gray-100"
       >
         Sign out
       </button>
