@@ -15,7 +15,6 @@ type CloudinaryCallback = (err?: UploadApiErrorResponse, result?: UploadApiRespo
 export async function POST(request: Request) {
   try {
     const contentType = request.headers.get('content-type') || '';
-    console.log('Request content type:', contentType);
 
     // Check if content type contains boundary
     if (!contentType.includes('boundary=')) {
@@ -26,7 +25,6 @@ export async function POST(request: Request) {
     let formData: FormData;
     try {
       formData = await request.formData();
-      console.log('FormData parsed successfully');
     } catch (formDataError) {
       console.error('Error parsing FormData:', formDataError);
       return NextResponse.json({ 
@@ -35,27 +33,10 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Log all received form data entries
-    console.log('Received form data entries:', Array.from(formData.entries()).map(([key, value]) => {
-      if (value instanceof Blob) {
-        return [key, { type: value.type, size: value.size }];
-      }
-      return [key, value];
-    }));
-
     const file = formData.get('file');
     const uploadType = formData.get('uploadType');
     const bottomLine = formData.get('bottomLine');
     const modelId = formData.get('modelId');
-
-    console.log('Form data values:', {
-      hasFile: !!file,
-      fileType: file instanceof Blob ? file.type : typeof file,
-      fileSize: file instanceof Blob ? file.size : 'N/A',
-      uploadType,
-      bottomLine,
-      modelId
-    });
 
     if (!file || !(file instanceof Blob)) {
       console.error('Missing or invalid file in request');
@@ -88,7 +69,6 @@ export async function POST(request: Request) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const dataURI = `data:${file.type};base64,${buffer.toString('base64')}`;
-      console.log('Successfully created data URI');
 
       // Determine folder and filename based on upload type
       let folder = 'tshirt-designs';
@@ -112,7 +92,6 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        console.log('Found model:', { modelId, modelName: model.name });
 
         // Clean up bottom line text for filename
         const cleanBottomLine = bottomLine.toString().replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -125,19 +104,12 @@ export async function POST(request: Request) {
           fetch_format: "auto",
           dpr: "2.0"
         });
-
-        console.log('Prepared upload parameters:', {
-          folder,
-          fileName,
-          transformations
-        });
       } else {
         console.error('Invalid upload type:', uploadType);
         return NextResponse.json({ error: 'Invalid upload type' }, { status: 400 });
       }
 
       try {
-        console.log('Starting Cloudinary upload...');
         // Upload to Cloudinary
         const result = await new Promise<UploadApiResponse>((resolve, reject) => {
           cloudinary.uploader.upload(
@@ -158,7 +130,6 @@ export async function POST(request: Request) {
                 reject(err);
               }
               else if (result) {
-                console.log('Cloudinary upload successful');
                 const optimizedUrl = result.secure_url.replace(
                   '/upload/',
                   '/upload/f_auto,q_auto/'

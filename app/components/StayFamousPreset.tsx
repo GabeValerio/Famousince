@@ -1,7 +1,7 @@
 'use client';
 
 import styled from 'styled-components';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { FaPencilAlt, FaCheck } from 'react-icons/fa';
 
 const PresetContainer = styled.div`
@@ -34,10 +34,10 @@ const PresetDescription = styled.div`
   gap: 8px;
 `;
 
-const IconButton = styled.button<{ isEditing?: boolean }>`
+const IconButton = styled.button<{ $isEditing?: boolean }>`
   background: transparent;
   border: none;
-  color: ${props => props.isEditing ? '#22C55E' : '#E53E3E'};
+  color: ${props => props.$isEditing ? '#22C55E' : '#E53E3E'};
   cursor: pointer;
   padding: 8px;
   position: absolute;
@@ -49,7 +49,7 @@ const IconButton = styled.button<{ isEditing?: boolean }>`
   transition: color 0.2s ease;
   
   &:hover {
-    color: ${props => props.isEditing ? '#16A34A' : '#C53030'};
+    color: ${props => props.$isEditing ? '#16A34A' : '#C53030'};
   }
 `;
 
@@ -69,11 +69,10 @@ const EditInput = styled.input`
 
 const BottomText = styled.span`
   text-align: center;
-  min-width: 200px;
   display: inline-block;
   font-family: 'Chalkduster', cursive;
-  font-size: 16px;
   color: black;
+  white-space: nowrap;
 `;
 
 export interface TextPosition {
@@ -81,6 +80,7 @@ export interface TextPosition {
   fontSize: number;
   top: number;
   left: number;
+  maxWidth?: number;
 }
 
 export interface StayFamousText {
@@ -91,7 +91,7 @@ export interface StayFamousText {
 const DEFAULT_PRESET: StayFamousText = {
   topLine: {
     text: 'FAMOUS SINCE',
-    fontSize: 22,
+    fontSize: 26,
     top: 33,
     left: 51,
   },
@@ -103,14 +103,62 @@ const DEFAULT_PRESET: StayFamousText = {
   },
 };
 
+const calculateTextWidth = (text: string, fontSize: number): number => {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) return 0;
+  
+  context.font = `${fontSize}px Chalkduster, cursive`;
+  return context.measureText(text).width;
+};
+
+const SIDE_PADDING = 4; // 2px on each side
+
+const calculateDynamicFontSize = (text: string, maxWidth: number, startingFontSize: number): number => {
+  if (!text) return startingFontSize;
+  
+  // Get reference width from "FAMOUS SINCE" text
+  const referenceWidth = calculateTextWidth("FAMOUS SINCE", DEFAULT_PRESET.topLine.fontSize);
+  // Target width should be reference width minus padding
+  const targetWidth = referenceWidth - (SIDE_PADDING * 2);
+  
+  let fontSize = startingFontSize;
+  let textWidth = calculateTextWidth(text, fontSize);
+  
+  // Keep reducing until width fits or we hit minimum size
+  while (textWidth > targetWidth && fontSize > 12) {
+    fontSize--;
+    textWidth = calculateTextWidth(text, fontSize);
+  }
+  
+  // If still too wide at current size, force it to 12px
+  if (calculateTextWidth(text, fontSize) > targetWidth) {
+    fontSize = 12;
+  }
+
+  console.log('Font size calculation:', {
+    text,
+    startingSize: startingFontSize,
+    finalSize: fontSize,
+    textWidth,
+    referenceWidth,
+    targetWidth,
+    padding: SIDE_PADDING * 2,
+    widthAtTwelve: calculateTextWidth(text, 12)
+  });
+  
+  return fontSize;
+};
+
 interface StayFamousPresetProps {
   customText: string;
+  originalDescription: string;
   onTextChange?: (text: string) => void;
 }
 
-export default function StayFamousPreset({ customText, onTextChange }: StayFamousPresetProps) {
+export default function StayFamousPreset({ customText, originalDescription, onTextChange }: StayFamousPresetProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(customText);
+  const [editText, setEditText] = useState(originalDescription);
 
   const currentPreset: StayFamousText = {
     ...DEFAULT_PRESET,
@@ -125,6 +173,11 @@ export default function StayFamousPreset({ customText, onTextChange }: StayFamou
     setIsEditing(false);
   };
 
+  const handleEdit = () => {
+    setEditText(originalDescription);
+    setIsEditing(true);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSave();
@@ -134,8 +187,8 @@ export default function StayFamousPreset({ customText, onTextChange }: StayFamou
   return (
     <PresetContainer>
       <IconButton 
-        onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-        isEditing={isEditing}
+        onClick={() => isEditing ? handleSave() : handleEdit()}
+        $isEditing={isEditing}
         type="button"
       >
         {isEditing ? <FaCheck size={14} /> : <FaPencilAlt size={14} />}
@@ -147,13 +200,15 @@ export default function StayFamousPreset({ customText, onTextChange }: StayFamou
         {isEditing ? (
           <EditInput
             type="text"
-            value={editText.toUpperCase()}
-            onChange={(e) => setEditText(e.target.value.toUpperCase())}
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
             onKeyDown={handleKeyDown}
             autoFocus
           />
         ) : (
-          <BottomText>{currentPreset.bottomLine.text}</BottomText>
+          <BottomText style={{ fontSize: `${currentPreset.bottomLine.fontSize}px` }}>
+            {currentPreset.bottomLine.text}
+          </BottomText>
         )}
       </PresetDescription>
     </PresetContainer>

@@ -12,6 +12,7 @@ import { useCart } from "@/lib/CartContext"
 import { useRouter } from "next/navigation"
 import React from "react"
 import { createProductWithImage, checkExistingProduct } from "@/app/utils/productUtils"
+import { generateAndUploadImage } from "@/app/utils/imageUtils"
 
 const CustomizationContainer = styled.div`
   display: flex;
@@ -43,13 +44,28 @@ const ImageContainer = styled.div`
   max-width: 600px;
   aspect-ratio: 4/5;
   margin-bottom: 24px;
+  height: auto;
 `
 
-const TextOverlay = styled.div<{ $position: { top: number; left: number; fontSize: number }, $verticalOffset: number, $isMobile: boolean }>`
+const TextOverlay = styled.div<{ 
+  $position: { 
+    top: number; 
+    left: number; 
+    fontSize: number;
+  }, 
+  $verticalOffset: number, 
+  $isMobile: boolean,
+  $allowWrap?: boolean,
+  $debug?: boolean
+}>`
   position: absolute;
   top: ${props => {
     const baseTop = props.$position.top + props.$verticalOffset;
-    return props.$isMobile ? `${baseTop * 1.00}%` : `${baseTop}%`;
+    // Reduced wrapAdjustment from 2 to 0.5 to bring wrapped text closer to FAMOUS SINCE
+    const wrapAdjustment = props.$allowWrap ? 0.5 : 0;
+    return props.$isMobile 
+      ? `${(baseTop + wrapAdjustment) * 1.00}%` 
+      : `${baseTop + wrapAdjustment}%`;
   }};
   left: ${props => props.$position.left}%;
   transform: translate(-50%, -50%);
@@ -57,12 +73,25 @@ const TextOverlay = styled.div<{ $position: { top: number; left: number; fontSiz
   text-align: center;
   color: white;
   font-size: ${props => {
-    const baseFontSize = props.$position.fontSize;
-    return props.$isMobile ? `${baseFontSize * 0.6}px` : `${baseFontSize}px`;
+    const fontSize = props.$position.fontSize;
+    return props.$isMobile ? `${fontSize * 0.6}px` : `${fontSize}px`;
   }};
   font-weight: bold;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
   font-family: 'Chalkduster', cursive;
+  white-space: ${props => props.$allowWrap ? 'pre-wrap' : 'nowrap'};
+  max-width: ${props => props.$allowWrap ? '171px' : 'none'};
+  line-height: 1.3;
+  ${props => props.$debug && `
+    &::after {
+      content: " [" attr(data-width) "px @ " attr(data-font-size) "px]";
+      font-size: 12px;
+      font-family: monospace;
+      color: yellow;
+      text-shadow: none;
+      margin-left: 8px;
+    }
+  `}
 `
 
 const ProductOptions = styled.div`
@@ -144,6 +173,12 @@ const ColorButton = React.memo(({ color, isSelected, onSelect }: ColorButtonProp
 
 ColorButton.displayName = 'ColorButton';
 
+interface LoadingState {
+  isLoading: boolean;
+  step: 'idle' | 'generating_image' | 'checking_product' | 'creating_product' | 'adding_to_cart' | 'redirecting';
+  error: string | null;
+}
+
 export default function StayFamousPage({ params }: { params: { description: string } }) {
   // Convert underscores back to spaces and decode URI component
   const description = decodeURIComponent(params.description).replace(/_+/g, ' ');
@@ -158,19 +193,29 @@ function StayFamousContent({ description }: { description: string }) {
   const { addToCart } = useCart();
   const [selectedModel, setSelectedModel] = useState<Model>(MODELS[0])
   const [customLine, setCustomLine] = useState("")
+  const [originalDescription, setOriginalDescription] = useState(description)
   const [textPreset, setTextPreset] = useState<StayFamousText>(DEFAULT_PRESET)
   const [isExpanded, setIsExpanded] = useState(false)
   const [expandedBy, setExpandedBy] = useState<'cart' | 'buy' | null>(null)
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
-  const [errorMessage, setErrorMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [loadingState, setLoadingState] = useState<LoadingState>({
+    isLoading: false,
+    step: 'idle',
+    error: null
+  });
   const imageContainerRef = React.useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+  const [topFontSize, setTopFontSize] = useState(26);
+  const [bottomFontSize, setBottomFontSize] = useState(22);
+  const [shouldWrapBottom, setShouldWrapBottom] = useState(false);
+  const [formattedBottomText, setFormattedBottomText] = useState(description);
 
   useEffect(() => {
     setCustomLine(description);
+    setOriginalDescription(description);
     setTextPreset({
       ...DEFAULT_PRESET,
       bottomLine: {
@@ -193,48 +238,112 @@ function StayFamousContent({ description }: { description: string }) {
 
   const handleTextChange = useCallback((newText: string) => {
     const upperText = newText.toUpperCase();
-    setCustomLine(upperText)
-    localStorage.setItem("customLine", upperText)
-    setTextPreset({
-      ...textPreset,
+    setCustomLine(upperText);
+    setOriginalDescription(newText);
+    setTextPreset(prev => ({
+      ...prev,
       bottomLine: {
-        ...textPreset.bottomLine,
+        ...prev.bottomLine,
         text: upperText,
       },
-    })
-  }, [textPreset]);
+    }));
+  }, []);
 
-  const createCartItem = useCallback(() => {
+  // Update text preset with custom font sizes
+  const customTextPreset = useMemo(() => ({
+    ...textPreset,
+    topLine: {
+      ...textPreset.topLine,
+      fontSize: topFontSize
+    },
+    bottomLine: {
+      ...textPreset.bottomLine,
+      fontSize: bottomFontSize,
+      text: formattedBottomText
+    }
+  }), [textPreset, topFontSize, bottomFontSize, formattedBottomText]);
+
+  const getLoadingMessage = (step: LoadingState['step']) => {
+    switch (step) {
+      case 'generating_image':
+        return 'Generating your custom design...';
+      case 'checking_product':
+        return 'Checking product details...';
+      case 'creating_product':
+        return 'Creating your custom product...';
+      case 'adding_to_cart':
+        return 'Adding to cart...';
+      case 'redirecting':
+        return 'Taking you to checkout...';
+      default:
+        return 'Processing...';
+    }
+  };
+
+  const createCartItem = useCallback(async () => {
     if (!selectedSize || !selectedColor) {
-      setErrorMessage("Please select both size and color")
-      return null
+      setLoadingState(prev => ({ ...prev, error: "Please select both size and color" }));
+      return null;
     }
 
-    return {
-      id: `custom-${selectedModel.id}-${selectedSize}-${selectedColor}-${encodeURIComponent(textPreset.bottomLine.text)}`,
-      product_id: 'custom',
-      variant_id: `${selectedSize}-${selectedColor}`,
-      name: `Famous Since ${textPreset.bottomLine.text} T-Shirt`,
-      description: textPreset.bottomLine.text,
-      price: 28.00,
-      quantity: quantity,
-      image: selectedModel.imagePath,
-      size: selectedSize,
-      color: selectedColor,
-      customization: {
-        topLine: textPreset.topLine.text,
-        bottomLine: textPreset.bottomLine.text,
+    try {
+      setLoadingState(prev => ({ ...prev, step: 'generating_image', error: null }));
+      
+      // Generate the customized image
+      const customImageUrl = await generateAndUploadImage(
+        imageContainerRef.current!,
+        customTextPreset,
+        selectedModel.id
+      );
+
+      if (!customImageUrl) {
+        throw new Error('Failed to generate customized image');
       }
-    }
-  }, [selectedSize, selectedColor, selectedModel, quantity, textPreset]);
 
-  const handleAddToCart = useCallback(() => {
-    const cartItem = createCartItem();
-    if (cartItem) {
-      addToCart(cartItem);
-      setErrorMessage("");
-      setIsExpanded(false);
-      setExpandedBy(null);
+      return {
+        id: `custom-${selectedModel.id}-${selectedSize}-${selectedColor}-${encodeURIComponent(customTextPreset.bottomLine.text)}`,
+        product_id: 'custom',
+        variant_id: `${selectedSize}-${selectedColor}`,
+        name: `Famous Since ${customTextPreset.bottomLine.text} T-Shirt`,
+        description: customTextPreset.bottomLine.text,
+        price: 38.00,
+        quantity: quantity,
+        image: customImageUrl,
+        size: selectedSize,
+        color: selectedColor,
+        customization: {
+          topLine: customTextPreset.topLine.text,
+          bottomLine: customTextPreset.bottomLine.text,
+        }
+      }
+    } catch (error) {
+      console.error('Error creating cart item:', error);
+      setLoadingState(prev => ({
+        ...prev,
+        error: 'Failed to generate customized image. Please try again.'
+      }));
+      return null;
+    }
+  }, [selectedSize, selectedColor, selectedModel, quantity, customTextPreset, imageContainerRef]);
+
+  const handleAddToCart = useCallback(async () => {
+    setLoadingState({ isLoading: true, step: 'generating_image', error: null });
+    
+    try {
+      const cartItem = await createCartItem();
+      if (cartItem) {
+        setLoadingState(prev => ({ ...prev, step: 'adding_to_cart' }));
+        addToCart(cartItem);
+        setLoadingState({ isLoading: false, step: 'idle', error: null });
+        setIsExpanded(false);
+        setExpandedBy(null);
+      }
+    } catch (error) {
+      setLoadingState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Failed to add item to cart. Please try again.'
+      }));
     }
   }, [createCartItem, addToCart]);
 
@@ -246,22 +355,22 @@ function StayFamousContent({ description }: { description: string }) {
     }
 
     try {
-      setIsLoading(true);
-      setErrorMessage("");
+      setLoadingState({ isLoading: true, step: 'generating_image', error: null });
 
-      const cartItem = createCartItem();
+      const cartItem = await createCartItem();
       if (!cartItem) {
-        setIsLoading(false);
         return;
       }
 
-      const currentText = textPreset.bottomLine.text;
+      setLoadingState(prev => ({ ...prev, step: 'checking_product' }));
+      const currentText = customTextPreset.bottomLine.text;
       const existingProduct = await checkExistingProduct(currentText);
       
       if (!existingProduct) {
+        setLoadingState(prev => ({ ...prev, step: 'creating_product' }));
         const result = await createProductWithImage({
           description: currentText,
-          textPreset,
+          textPreset: customTextPreset,
           imageContainerRef: imageContainerRef.current!,
           modelId: selectedModel.id
         });
@@ -271,17 +380,22 @@ function StayFamousContent({ description }: { description: string }) {
         }
       }
 
+      setLoadingState(prev => ({ ...prev, step: 'adding_to_cart' }));
       addToCart(cartItem);
       setIsExpanded(false);
       setExpandedBy(null);
+
+      setLoadingState(prev => ({ ...prev, step: 'redirecting' }));
       router.push('/shop/checkout');
     } catch (error) {
       console.error("Error in buy now flow:", error);
-      setErrorMessage("There was an error processing your request. Please try again.");
-    } finally {
-      setIsLoading(false);
+      setLoadingState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: "There was an error processing your request. Please try again."
+      }));
     }
-  }, [isExpanded, createCartItem, textPreset, selectedModel.id, imageContainerRef, addToCart, router]);
+  }, [isExpanded, createCartItem, customTextPreset, selectedModel.id, imageContainerRef, addToCart, router]);
 
   const onCartClick = useCallback(() => {
     setIsExpanded(!isExpanded);
@@ -294,12 +408,12 @@ function StayFamousContent({ description }: { description: string }) {
 
   const handleSizeSelect = useCallback((size: string) => {
     setSelectedSize(size);
-    setErrorMessage("");
+    setLoadingState(prev => ({ ...prev, error: null }));
   }, []);
 
   const handleColorSelect = useCallback((color: string) => {
     setSelectedColor(color);
-    setErrorMessage("");
+    setLoadingState(prev => ({ ...prev, error: null }));
   }, []);
 
   // Memoize size buttons
@@ -314,6 +428,101 @@ function StayFamousContent({ description }: { description: string }) {
     ))
   ), [selectedSize, handleSizeSelect]);
 
+  // Function to measure text width
+  const measureTextWidth = useCallback((text: string, fontSize: number) => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return 0;
+    context.font = `${fontSize}px Chalkduster, cursive`;
+    return Math.round(context.measureText(text).width);
+  }, []);
+
+  // Function to calculate font size that keeps text width under maxWidth
+  const calculateMaxFontSize = useCallback((text: string, maxWidth: number, defaultSize: number = 22) => {
+    if (!text) return { fontSize: defaultSize, shouldWrap: false, formattedText: '' };
+    
+    // First try with default size
+    const defaultWidth = measureTextWidth(text, defaultSize);
+    if (defaultWidth <= maxWidth) {
+      return { fontSize: defaultSize, shouldWrap: false, formattedText: text };
+    }
+    
+    // Try reducing size down to 12px
+    let fontSize = defaultSize;
+    while (fontSize > 12 && measureTextWidth(text, fontSize) > maxWidth) {
+      fontSize--;
+    }
+    
+    // If we hit 12px and it's still too wide, we should wrap
+    if (fontSize === 12 && measureTextWidth(text, fontSize) > maxWidth) {
+      // Split text into words
+      const words = text.split(' ');
+      let firstLine = '';
+      let secondLine = '';
+      let currentLine = '';
+      
+      // Build first line word by word until we exceed maxWidth
+      for (let i = 0; i < words.length; i++) {
+        const testLine = currentLine + (currentLine ? ' ' : '') + words[i];
+        const lineWidth = measureTextWidth(testLine, 12);
+        
+        if (lineWidth <= maxWidth) {
+          currentLine = testLine;
+        } else {
+          // If this is the first word and it's too long, keep it on first line
+          if (i === 0) {
+            firstLine = words[0];
+            secondLine = words.slice(1).join(' ');
+          } else {
+            firstLine = currentLine;
+            secondLine = words.slice(i).join(' ');
+          }
+          break;
+        }
+      }
+      
+      // If we haven't set the lines yet (meaning all words fit on first line)
+      if (!firstLine) {
+        firstLine = currentLine;
+        secondLine = '';
+      }
+      
+      const firstLineWidth = measureTextWidth(firstLine, 12);
+      const secondLineWidth = measureTextWidth(secondLine, 12);
+      
+      if (Math.max(firstLineWidth, secondLineWidth) <= maxWidth) {
+        return { 
+          fontSize: 12, 
+          shouldWrap: true, 
+          formattedText: secondLine ? `${firstLine}\n${secondLine}` : firstLine
+        };
+      }
+    }
+    
+    return { fontSize, shouldWrap: false, formattedText: text };
+  }, [measureTextWidth]);
+
+  // Calculate bottom font size based on max width
+  const maxBottomWidth = 171;
+  
+  useEffect(() => {
+    if (customLine) {
+      const { fontSize, shouldWrap, formattedText } = calculateMaxFontSize(customLine, maxBottomWidth);
+      setBottomFontSize(fontSize);
+      setShouldWrapBottom(shouldWrap);
+      setFormattedBottomText(formattedText);
+      
+      console.log('Font size calculation:', {
+        text: customLine,
+        fontSize,
+        shouldWrap,
+        formattedText,
+        width: measureTextWidth(customLine, fontSize),
+        maxWidth: maxBottomWidth
+      });
+    }
+  }, [customLine, calculateMaxFontSize, measureTextWidth]);
+
   return (
     <div className="min-h-screen bg-black text-white">
       <CustomizationContainer>
@@ -324,23 +533,71 @@ function StayFamousContent({ description }: { description: string }) {
               alt="T-shirt preview"
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
-              style={{ objectFit: "contain" }}
+              style={{ objectFit: "contain", width: "100%", height: "100%" }}
             />
             <TextOverlay 
-              $position={textPreset.topLine}
+              $position={customTextPreset.topLine}
               $verticalOffset={selectedModel.verticalOffset}
               $isMobile={isMobile}
+              $debug={debugMode}
+              data-width={measureTextWidth(customTextPreset.topLine.text, customTextPreset.topLine.fontSize)}
+              data-font-size={customTextPreset.topLine.fontSize}
             >
-              {textPreset.topLine.text}
+              {customTextPreset.topLine.text}
             </TextOverlay>
             <TextOverlay 
-              $position={textPreset.bottomLine}
+              $position={customTextPreset.bottomLine}
               $verticalOffset={selectedModel.verticalOffset}
               $isMobile={isMobile}
+              $debug={debugMode}
+              $allowWrap={shouldWrapBottom}
+              data-width={measureTextWidth(customTextPreset.bottomLine.text.split('\n')[0], customTextPreset.bottomLine.fontSize)}
+              data-font-size={customTextPreset.bottomLine.fontSize}
             >
-              {textPreset.bottomLine.text}
+              {customTextPreset.bottomLine.text}
             </TextOverlay>
           </ImageContainer>
+          
+          {/* Debug Controls */}
+          <div className="w-full max-w-[600px] p-4 bg-white/10 rounded-md mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <Label className="text-sm text-white">Debug Mode</Label>
+              <Button
+                variant="outline"
+                className="bg-white/10 border-white/20 hover:bg-white/20"
+                onClick={() => setDebugMode(!debugMode)}
+              >
+                {debugMode ? 'Hide Debug Info' : 'Show Debug Info'}
+              </Button>
+            </div>
+            
+            {debugMode && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm text-white mb-2">Top Text Font Size: {topFontSize}px</Label>
+                  <input
+                    type="range"
+                    min="12"
+                    max="40"
+                    value={topFontSize}
+                    onChange={(e) => setTopFontSize(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm text-white mb-2">Bottom Text Font Size: {bottomFontSize}px</Label>
+                  <input
+                    type="range"
+                    min="12"
+                    max="40"
+                    value={bottomFontSize}
+                    onChange={(e) => setBottomFontSize(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </PreviewSection>
 
         <CustomizationSection>
@@ -351,12 +608,13 @@ function StayFamousContent({ description }: { description: string }) {
           
           <div className="mt-6">
             <StayFamousPreset 
-              customText={customLine} 
+              customText={customLine}
+              originalDescription={originalDescription}
               onTextChange={handleTextChange}
             />
             
             <div className="flex items-center justify-between mt-4">
-              <p className="text-2xl font-bold">$28.00</p>
+              <p className="text-2xl font-bold">$38.00</p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -370,13 +628,13 @@ function StayFamousContent({ description }: { description: string }) {
                   variant="outline"
                   className="bg-white text-black hover:bg-white/90"
                   onClick={onBuyNow}
-                  disabled={isLoading}
+                  disabled={loadingState.isLoading}
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
+                  {loadingState.isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>{getLoadingMessage(loadingState.step)}</span>
+                    </div>
                   ) : (
                     'Buy Now'
                   )}
@@ -416,28 +674,31 @@ function StayFamousContent({ description }: { description: string }) {
                         isSelected={selectedColor === "Black"}
                         onSelect={handleColorSelect}
                       />
+                      <ColorButton
+                        color="White"
+                        isSelected={selectedColor === "White"}
+                        onSelect={handleColorSelect}
+                      />
                     </div>
                   </div>
                 </div>
 
-                {errorMessage && (
-                  <ErrorMessage>{errorMessage}</ErrorMessage>
+                {loadingState.error && (
+                  <ErrorMessage>{loadingState.error}</ErrorMessage>
                 )}
 
                 <Button
                   className="w-full bg-white text-black hover:bg-white/90 mt-4"
                   onClick={expandedBy === 'cart' ? handleAddToCart : onBuyNow}
-                  disabled={isLoading}
+                  disabled={loadingState.isLoading}
                 >
-                  {expandedBy === 'cart' ? 'Add to Cart' : (
-                    isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      'Buy Now'
-                    )
+                  {loadingState.isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>{getLoadingMessage(loadingState.step)}</span>
+                    </div>
+                  ) : (
+                    expandedBy === 'cart' ? 'Add to Cart' : 'Buy Now'
                   )}
                 </Button>
               </ProductOptions>

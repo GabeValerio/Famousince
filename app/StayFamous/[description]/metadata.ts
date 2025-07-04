@@ -10,21 +10,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Convert underscores back to spaces and decode URI component
   const description = decodeURIComponent(params.description).replace(/_+/g, ' ');
   
-  const title = `Check out my Famous Since Moment: Famous Since ${description}`;
+  const title = `Famous Since ${description}`;
+  const sharedDescription = `Check out my Famous Since Moment: ${description}`;
+  const url = `https://famousince.com/StayFamous/${params.description}`;
   
   return {
     title,
-    description: `Check out my Famous Since Moment: ${description}. Design and order custom t-shirts featuring your famous moment at Famousince.com`,
+    description: sharedDescription,
     openGraph: {
       title,
-      description: `Check out my Famous Since Moment: ${description}. Design and order custom t-shirts featuring your famous moment at Famousince.com`,
-      type: 'website',
-      url: `https://famousince.com/StayFamous/${params.description}`,
+      description: sharedDescription,
+      url,
+      images: [{
+        url: 'https://res.cloudinary.com/dme5tinla/image/upload/v1751231082/og-image_umtqkj.png',
+        width: 1200,
+        height: 630,
+        alt: `Famous Since ${description} - Custom T-Shirt`
+      }]
     },
     twitter: {
       card: 'summary_large_image',
       title,
-      description: `Check out my Famous Since Moment: ${description}. Design and order custom t-shirts featuring your famous moment at Famousince.com`,
+      description: sharedDescription,
+      images: ['https://res.cloudinary.com/dme5tinla/image/upload/v1751231082/og-image_umtqkj.png']
     }
   };
 } 

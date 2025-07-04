@@ -17,7 +17,10 @@ const defaultMetadata = {
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://famousince.com'),
-  title: defaultMetadata.title,
+  title: {
+    template: '%s | Famousince',
+    default: defaultMetadata.title,
+  },
   description: defaultMetadata.description,
   keywords: 'custom t-shirts, personalized shirts, famous moment shirts, custom clothing, print on demand, memorable shirts',
   authors: [{ name: 'Gabriel Valerio' }],
@@ -25,7 +28,10 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'Famousince.com',
     url: defaultMetadata.url,
-    title: defaultMetadata.title,
+    title: {
+      template: '%s | Famousince',
+      default: defaultMetadata.title,
+    },
     description: defaultMetadata.description,
     images: [
       {
@@ -39,7 +45,10 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     site: '@famousince',
-    title: defaultMetadata.title,
+    title: {
+      template: '%s | Famousince',
+      default: defaultMetadata.title,
+    },
     description: defaultMetadata.description,
     images: [defaultMetadata.imageUrl]
   },

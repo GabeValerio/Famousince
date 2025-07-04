@@ -37,6 +37,21 @@ const HomePageDisplay: React.FC = () => {
   const [randomPositions, setRandomPositions] = useState<number[]>([]);
   const [notification, setNotification] = useState<Notification | null>(null);
   const numPositions = 4;
+  
+  // Add ref to track state changes
+  const stateRef = React.useRef<{
+    selectedProducts: { [key: number]: string };
+    randomPositions: number[];
+  }>({
+    selectedProducts: {},
+    randomPositions: []
+  });
+
+  // Update ref when state changes
+  useEffect(() => {
+    stateRef.current.selectedProducts = selectedProducts;
+    stateRef.current.randomPositions = randomPositions;
+  }, [selectedProducts, randomPositions]);
 
   useEffect(() => {
     fetchProducts();
@@ -90,30 +105,36 @@ const HomePageDisplay: React.FC = () => {
 
       if (error) throw error;
 
-      console.log("Fetched homepage display:", data);
-
+      // Initialize state objects
       const displayConfig: { [key: number]: string } = {};
       const randomPos: number[] = [];
 
-      data?.forEach((item: HomepageDisplay) => {
-        if (item.product_id) {
-          displayConfig[item.position] = item.product_id;
-        } else {
-          // If no product is selected, mark this position as random
-          randomPos.push(item.position);
+      // First, check if all positions are random
+      const allRandom = data?.every(item => item.product_id === null);
+      
+      if (allRandom) {
+        // If all positions are random, add all positions to randomPos
+        for (let i = 0; i < numPositions; i++) {
+          randomPos.push(i);
         }
-      });
-
-      // Assign random products to random positions
-      randomPos.forEach(position => {
-        const randomProduct = getRandomProduct(displayConfig);
-        if (randomProduct) {
-          displayConfig[position] = randomProduct.id;
-        }
-      });
-
-      setRandomPositions(randomPos);
+      } else {
+        // Otherwise, process each position normally
+        data?.forEach((item: HomepageDisplay) => {
+          if (item.product_id === null) {
+            randomPos.push(item.position);
+          } else {
+            displayConfig[item.position] = item.product_id;
+          }
+        });
+      }
+      
+      // Update both state and ref
       setSelectedProducts(displayConfig);
+      setRandomPositions(randomPos);
+      stateRef.current = {
+        selectedProducts: displayConfig,
+        randomPositions: randomPos
+      };
     } catch (error) {
       console.error("Error fetching homepage display:", error);
       setNotification({ type: 'error', message: 'Failed to load homepage configuration' });
@@ -137,45 +158,90 @@ const HomePageDisplay: React.FC = () => {
 
   const handleProductSelect = (position: number, value: string) => {
     console.log("Selecting product:", { position, value });
-    setSelectedProducts(prev => {
-      const newState = { ...prev };
-      
-      if (value === "none") {
-        delete newState[position];
-        setRandomPositions(prev => prev.filter(p => p !== position));
-      } else if (value === "random") {
-        // For random selection, remove any existing selection and mark position as random
-        delete newState[position];
-        setRandomPositions(prev => [...prev, position]);
-      } else {
-        newState[position] = value;
-        setRandomPositions(prev => prev.filter(p => p !== position));
+    
+    // Create new state objects based on current ref state
+    const newSelectedProducts = { ...stateRef.current.selectedProducts };
+    const newRandomPositions = [...stateRef.current.randomPositions];
+    
+    if (value === "none") {
+      delete newSelectedProducts[position];
+      const randomIndex = newRandomPositions.indexOf(position);
+      if (randomIndex > -1) {
+        newRandomPositions.splice(randomIndex, 1);
       }
-      
-      return newState;
-    });
+    } else if (value === "random") {
+      delete newSelectedProducts[position];
+      if (!newRandomPositions.includes(position)) {
+        newRandomPositions.push(position);
+      }
+    } else {
+      newSelectedProducts[position] = value;
+      const randomIndex = newRandomPositions.indexOf(position);
+      if (randomIndex > -1) {
+        newRandomPositions.splice(randomIndex, 1);
+      }
+    }
+    
+    // Update both state and ref immediately
+    stateRef.current = {
+      selectedProducts: newSelectedProducts,
+      randomPositions: newRandomPositions
+    };
+    
+    console.log("Updated state:", stateRef.current);
+    
+    // Update React state
+    setSelectedProducts(newSelectedProducts);
+    setRandomPositions(newRandomPositions);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      for (let position = 0; position < numPositions; position++) {
-        const isRandom = randomPositions.includes(position);
-        const { error } = await supabase
-          .from("homepage_display")
-          .upsert({
-            position,
-            product_id: isRandom ? null : (selectedProducts[position] || null)
-          }, {
-            onConflict: "position"
-          });
+      console.log("Current state before save:", stateRef.current);
+      
+      const updates = Array.from({ length: numPositions }).map((_, position) => {
+        const isRandom = stateRef.current.randomPositions.includes(position);
+        const productId = stateRef.current.selectedProducts[position];
+        
+        console.log(`Position ${position}:`, { isRandom, productId });
+        
+        return {
+          position,
+          product_id: isRandom ? null : (productId || null),
+          updated_at: new Date().toISOString()
+        };
+      });
 
-        if (error) throw error;
-      }
+      console.log("Saving updates:", updates);
+
+      // First delete all existing entries
+      const { error: deleteError } = await supabase
+        .from("homepage_display")
+        .delete()
+        .neq("position", -1);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert the new configuration
+      const { error: insertError } = await supabase
+        .from("homepage_display")
+        .insert(updates);
+
+      if (insertError) throw insertError;
+
+      // Verify the save
+      const { data: verificationData } = await supabase
+        .from("homepage_display")
+        .select("*")
+        .order("position");
+        
+      console.log("Verification data:", verificationData);
 
       setNotification({ type: 'success', message: 'Homepage display configuration saved' });
-      // Refresh the display to get new random products
-      fetchHomepageDisplay();
+      
+      // Refresh the display
+      await fetchHomepageDisplay();
     } catch (error) {
       console.error("Error saving homepage display:", error);
       setNotification({ type: 'error', message: 'Failed to save homepage configuration' });
@@ -215,12 +281,14 @@ const HomePageDisplay: React.FC = () => {
             </h3>
             
             <Select
-              value={selectedProducts[index] || "none"}
+              value={randomPositions.includes(index) ? "random" : (selectedProducts[index] || "none")}
               onValueChange={(value) => handleProductSelect(index, value)}
             >
               <SelectTrigger className="w-full bg-white/10 border-white/20 text-white">
                 <SelectValue>
-                  {selectedProducts[index] ? (
+                  {randomPositions.includes(index) ? (
+                    "Random"
+                  ) : selectedProducts[index] ? (
                     products.find(p => p.id === selectedProducts[index])?.description || "Select a product"
                   ) : (
                     "Select a product"
@@ -229,6 +297,7 @@ const HomePageDisplay: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="bg-black border border-white/20 text-white z-50">
                 <SelectItem value="none" className="text-white hover:bg-white/10">None</SelectItem>
+                <SelectItem value="random" className="text-white hover:bg-white/10">Random</SelectItem>
                 {products.map((product) => (
                   <SelectItem 
                     key={product.id} 

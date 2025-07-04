@@ -16,6 +16,25 @@ export interface ProductCreationResult {
   error?: Error;
 }
 
+export async function checkExistingProduct(description: string) {
+  try {
+    const { data: products, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("description", description.trim())
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    return products;
+  } catch (error) {
+    console.error("Error checking existing product:", error);
+    return null;
+  }
+}
+
 export async function createProductWithImage({
   description,
   textPreset,
@@ -23,6 +42,12 @@ export async function createProductWithImage({
   modelId,
 }: CreateProductParams): Promise<ProductCreationResult> {
   try {
+    // Check for duplicate description first
+    const existingProduct = await checkExistingProduct(description);
+    if (existingProduct) {
+      throw new Error('A product with this description already exists. Please use a unique description.');
+    }
+
     // First generate and upload the image
     const imageUrl = await generateAndUploadImage(
       imageContainerRef,
@@ -39,7 +64,7 @@ export async function createProductWithImage({
       .from("products")
       .insert({
         name: "Famous Since T-Shirt",
-        description: description,
+        description: description.trim(),
         base_price: 28.00,
         application: "Screen Press",
         garment: "T-Shirt",
@@ -48,7 +73,13 @@ export async function createProductWithImage({
       .select()
       .single();
 
-    if (productError) throw productError;
+    if (productError) {
+      // Handle unique constraint violation
+      if (productError.code === '23505' && productError.message.includes('unique_product_description')) {
+        throw new Error('A product with this description already exists. Please use a unique description.');
+      }
+      throw productError;
+    }
 
     // Create variants
     const sizes = ["S", "M", "L", "XL", "2XL"];
@@ -79,24 +110,5 @@ export async function createProductWithImage({
       success: false,
       error: error instanceof Error ? error : new Error('Unknown error occurred')
     };
-  }
-}
-
-export async function checkExistingProduct(description: string) {
-  try {
-    const { data: products, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("description", description)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      throw error;
-    }
-
-    return products;
-  } catch (error) {
-    console.error("Error checking existing product:", error);
-    return null;
   }
 } 

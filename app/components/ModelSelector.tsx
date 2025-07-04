@@ -10,10 +10,10 @@ const ModelGrid = styled.div`
   margin-bottom: 24px;
 `;
 
-const ModelCard = styled.button<{ isSelected: boolean }>`
+const ModelCard = styled.button<{ $isSelected: boolean }>`
   position: relative;
   padding: 4px;
-  border: 2px solid ${props => props.isSelected ? '#0070f3' : '#e5e7eb'};
+  border: 2px solid ${props => props.$isSelected ? '#0070f3' : '#e5e7eb'};
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
@@ -21,14 +21,14 @@ const ModelCard = styled.button<{ isSelected: boolean }>`
   aspect-ratio: 4/5;
 
   &:hover {
-    border-color: ${props => props.isSelected ? '#0070f3' : '#d1d5db'};
+    border-color: ${props => props.$isSelected ? '#0070f3' : '#d1d5db'};
   }
 `;
 
 const ImageWrapper = styled.div`
   position: relative;
   width: 100%;
-  height: calc(100% - 24px);
+  height: 100%;
 `;
 
 const ModelName = styled.div`
@@ -80,7 +80,7 @@ export default function ModelSelector({ selectedModel, onSelectModel }: ModelSel
         {MODELS.map((model) => (
           <ModelCard
             key={model.id}
-            isSelected={selectedModel.id === model.id}
+            $isSelected={selectedModel.id === model.id}
             onClick={() => onSelectModel(model)}
           >
             <ImageWrapper>
@@ -89,7 +89,7 @@ export default function ModelSelector({ selectedModel, onSelectModel }: ModelSel
                 alt={model.name}
                 fill
                 sizes="(max-width: 768px) 33vw, 20vw"
-                style={{ objectFit: 'contain' }}
+                style={{ objectFit: 'contain', width: '100%', height: '100%' }}
               />
             </ImageWrapper>
             <ModelName>{model.name}</ModelName>

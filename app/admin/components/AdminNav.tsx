@@ -8,6 +8,7 @@ export function AdminNav() {
 
   const navItems = [
     { name: 'Store', href: '/admin/store' },
+    { name: 'Exceptions', href: '/admin/exceptions' },
     { name: 'Site Configuration', href: '/admin/site-config' },
   ];
 

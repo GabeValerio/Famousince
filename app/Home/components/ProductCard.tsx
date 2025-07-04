@@ -10,6 +10,7 @@ import { useState, useCallback, useMemo } from "react"
 import { useCart } from "@/lib/CartContext"
 import { useRouter } from "next/navigation"
 import React from "react"
+import Link from "next/link"
 
 interface ProductCardProps {
   product: Product
@@ -184,7 +185,13 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
 
       {/* For What Text */}
       <div className="text-center mb-4">
-        <p className="text-sm md:text-lg italic" style={{ fontFamily: 'Chalkduster, fantasy' }}>{product.famousLine}</p>
+        <Link 
+          href={`/StayFamous/${encodeURIComponent(product.description || '')}`}
+          className="text-sm md:text-lg italic hover:text-white hover:underline transition-colors"
+          style={{ fontFamily: 'Chalkduster, fantasy' }}
+        >
+          {product.famousLine}
+        </Link>
       </div>
 
       {/* Product Details */}
@@ -242,6 +249,11 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
                 <ColorButton
                   color="Black"
                   isSelected={selectedColor === "Black"}
+                  onSelect={handleColorSelect}
+                />
+                <ColorButton
+                  color="White"
+                  isSelected={selectedColor === "White"}
                   onSelect={handleColorSelect}
                 />
               </div>
