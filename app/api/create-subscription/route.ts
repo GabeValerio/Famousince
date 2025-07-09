@@ -29,15 +29,20 @@ export async function POST(request: NextRequest) {
       items: [{ price: priceId }]
     });
 
-    const subscription = await stripe.subscriptions.create({
+    const subscriptionResponse = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
       expand: ['latest_invoice.payment_intent'],
-    }) as Stripe.Subscription & {
-      latest_invoice: Stripe.Invoice & {
-        payment_intent: Stripe.PaymentIntent;
+    });
+
+    const subscription = subscriptionResponse as unknown as {
+      id: string;
+      latest_invoice: {
+        payment_intent: {
+          client_secret: string;
+        };
       };
     };
 

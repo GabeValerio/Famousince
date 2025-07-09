@@ -5,7 +5,7 @@ import Image from 'next/image';
 import styled from 'styled-components';
 import * as htmlToImage from 'html-to-image';
 import Presets, { TextPreset } from './Presets';
-import ModelSelector, { Model, MODELS } from './ModelSelector';
+import ModelSelector, { ProductType } from './ModelSelector';
 
 // Define fixed dimensions for consistency
 const FIXED_WIDTH = 600;
@@ -161,6 +161,12 @@ interface TextLine {
   left: number;
 }
 
+interface ModelData {
+  imagePath: string;
+  verticalOffset: number;
+  productTypeId: string;
+}
+
 interface ImageGeneratorProps {
   width?: number;
   height?: number;
@@ -245,11 +251,12 @@ const DimensionsDisplay = styled.div`
   white-space: nowrap;
 `;
 
-export default function ImageGenerator() {
-  const [selectedModel, setSelectedModel] = useState<Model>(MODELS[0]);
+export default function ImageGenerator({ productTypes = [] }: { productTypes: ProductType[] }) {
+  const [selectedProductType, setSelectedProductType] = useState<string>(productTypes[0]?.id || '');
+  const [selectedModel, setSelectedModel] = useState<ModelData | null>(null);
   const [topLine, setTopLine] = useState<TextLine>({
     text: '',
-    fontSize: 32,
+    fontSize: 48,
     top: 30,
     left: 50,
   });
@@ -305,47 +312,32 @@ export default function ImageGenerator() {
     setBottomLine(preset.bottomLine);
   };
 
-  const handleModelSelect = (model: Model) => {
-    setSelectedModel(model);
+  const handleModelSelect = (imagePath: string, verticalOffset: number, productTypeId: string) => {
+    setSelectedModel({
+      imagePath,
+      verticalOffset,
+      productTypeId
+    });
   };
 
   const handleDownload = async () => {
-    if (!imageContainerRef.current) return;
-    
+    if (!selectedModel) return;
+
+    const node = imageContainerRef.current;
+    if (!node) return;
+
     try {
-      setIsDownloading(true);
-      const dataUrl = await htmlToImage.toPng(imageContainerRef.current, {
-        quality: 1.0,
+      const dataUrl = await htmlToImage.toPng(node, {
+        quality: 1,
         pixelRatio: 2,
-        skipAutoScale: true,
-        style: {
-          transform: 'none'
-        }
       });
-      
-      // Format the date as YYYYMMDD
-      const date = new Date();
-      const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
-      
-      // Clean up text for filename (remove spaces and special characters)
-      const cleanText = (text: string) => {
-        return text.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      };
-      
-      const topTextClean = cleanText(topLine.text || 'notext');
-      const bottomTextClean = cleanText(bottomLine.text || 'notext');
-      const modelNameClean = cleanText(selectedModel.name);
-      
-      const fileName = `${modelNameClean}_${topTextClean}_${bottomTextClean}_${dateStr}.png`;
-      
+
       const link = document.createElement('a');
-      link.download = fileName;
+      link.download = `famous-since-${new Date().getTime()}.png`;
       link.href = dataUrl;
       link.click();
     } catch (error) {
-      console.error('Error downloading image:', error);
-    } finally {
-      setIsDownloading(false);
+      console.error('Error generating image:', error);
     }
   };
 
@@ -427,8 +419,10 @@ export default function ImageGenerator() {
         <ControlsGrid>
           <GridSection>
             <ModelSelector
-              selectedModel={selectedModel}
-              onSelectModel={handleModelSelect}
+              selectedProductType={selectedProductType}
+              selectedModel={selectedModel?.imagePath || null}
+              onModelSelect={handleModelSelect}
+              productTypes={productTypes}
             />
           </GridSection>
 
@@ -555,43 +549,44 @@ export default function ImageGenerator() {
         </DownloadButton>
       </Controls>
 
-      <PreviewContainer matchHeight={controlsHeight}>
+      <PreviewContainer matchHeight={FIXED_HEIGHT}>
         <ImageContainer ref={imageContainerRef}>
-          <StyledImage
-            src={selectedModel.imagePath}
-            alt={selectedModel.name}
-            width={FIXED_WIDTH - 32}
-            height={FIXED_HEIGHT - 32}
-            style={{ width: '100%', height: 'auto' }}
-            priority
-          />
-          {boundingBox && showBoundingBox && (
+          {selectedModel && (
+            <StyledImage
+              src={selectedModel.imagePath}
+              alt="Design Preview"
+              width={FIXED_WIDTH - 32}
+              height={FIXED_HEIGHT - 32}
+              priority
+            />
+          )}
+          {showBoundingBox && boundingBox && selectedModel && (
             <TextBoundingBox
               style={{
                 top: `${boundingBox.top + selectedModel.verticalOffset}%`,
                 left: `${boundingBox.left}%`,
                 width: `${boundingBox.width}%`,
-                height: `${boundingBox.height}%`
+                height: `${boundingBox.height}%`,
               }}
             />
           )}
-          {topLine.text && (
-            <TextOverlay
-              fontSize={topLine.fontSize}
-              top={topLine.top + selectedModel.verticalOffset}
-              left={topLine.left}
-            >
-              {topLine.text}
-            </TextOverlay>
-          )}
-          {bottomLine.text && (
-            <TextOverlay
-              fontSize={bottomLine.fontSize}
-              top={bottomLine.top + selectedModel.verticalOffset}
-              left={bottomLine.left}
-            >
-              {bottomLine.text}
-            </TextOverlay>
+          {selectedModel && (
+            <>
+              <TextOverlay
+                fontSize={topLine.fontSize}
+                top={topLine.top + selectedModel.verticalOffset}
+                left={topLine.left}
+              >
+                {topLine.text}
+              </TextOverlay>
+              <TextOverlay
+                fontSize={bottomLine.fontSize}
+                top={bottomLine.top + selectedModel.verticalOffset}
+                left={bottomLine.left}
+              >
+                {bottomLine.text}
+              </TextOverlay>
+            </>
           )}
         </ImageContainer>
       </PreviewContainer>

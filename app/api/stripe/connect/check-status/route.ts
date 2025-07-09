@@ -10,7 +10,7 @@ if (!stripeSecretKey) {
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2023-10-16",
+  apiVersion: "2023-10-16" as Stripe.LatestApiVersion,
 });
 
 export async function GET(request: NextRequest) {
@@ -85,18 +85,19 @@ export async function POST(request: Request) {
     const isComplete = account.charges_enabled && 
                       account.payouts_enabled && 
                       account.details_submitted &&
-                      !account.requirements.currently_due.length;
+                      account.requirements?.currently_due?.length === 0;
 
     // Return the account status
     return NextResponse.json({
+      id: account.id,
       isComplete,
       detailsSubmitted: account.details_submitted,
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       requirements: {
-        currentlyDue: account.requirements.currently_due,
-        eventuallyDue: account.requirements.eventually_due,
-        pastDue: account.requirements.past_due,
+        currentlyDue: account.requirements?.currently_due || [],
+        eventuallyDue: account.requirements?.eventually_due || [],
+        pastDue: account.requirements?.past_due || [],
       }
     });
   } catch (error) {
