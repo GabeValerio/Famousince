@@ -3,17 +3,21 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js";
 import convertToSubcurrency from "@/lib/convertToSubcurrency";
+import { useCart } from "@/lib/CartContext";
 
 interface CartItem {
-  id: string | number;
+  id: string;
+  product_id: string;
+  variant_id: string;
   name: string;
+  description?: string;
   price: number;
   quantity: number;
+  front_image_url?: string;
+  back_image_url?: string;
   image?: string;
-  size?: string;
-  color?: string;
-  priceID?: string;
-  isSubscription?: boolean;
+  size: string;
+  color: string;
 }
 
 interface StripePaymentProps {
@@ -85,9 +89,16 @@ const StripePayment = ({
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ 
-              amount: convertToSubcurrency(amount),
-              cart: cart
+            body: JSON.stringify({
+              amount: amount,
+              items: cart.map((item: CartItem) => ({
+                id: item.variant_id,
+                quantity: item.quantity,
+                price: item.price,
+                name: item.name,
+                size: item.size,
+                color: item.color
+              }))
             }),
           });
         }
@@ -108,44 +119,71 @@ const StripePayment = ({
     createPaymentIntent();
   }, [amount, cart, isSubscription, priceId, customer.customerId]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
 
     if (!stripe || !elements) {
+      setErrorMessage('Payment processing is not ready');
       setLoading(false);
       return;
     }
 
     const { error: submitError } = await elements.submit();
     if (submitError) {
-      setErrorMessage(submitError.message ?? null);
+      setErrorMessage(submitError.message ?? 'An error occurred during payment submission');
       setLoading(false);
       return;
     }
 
-    const { error } = await stripe.confirmPayment({
-      elements,
-      clientSecret: clientSecret ?? '',
-      confirmParams: {
-        return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/shop/success?amount=${amount}`,
-        receipt_email: email,
-        shipping: {
-          name: customerName,
-          address: {
-            line1: shippingAddress,
-            postal_code: postalCode,
-            country: country,
+    try {
+      const response = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amount,
+          currency: 'usd',
+          paymentMethodType: 'card',
+          items: cart.map((item: CartItem) => ({
+            id: item.variant_id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: item.price,
+            name: item.name,
+            description: item.description,
+            size: item.size,
+            color: item.color
+          }))
+        }),
+      });
+
+      const { clientSecret, paymentIntentId } = await response.json();
+
+      const { error: confirmError } = await stripe.confirmPayment({
+        elements,
+        clientSecret,
+        confirmParams: {
+          return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/shop/success?payment_intent=${paymentIntentId}&amount=${amount}`,
+          receipt_email: email,
+          shipping: {
+            name: customerName,
+            address: {
+              line1: shippingAddress,
+              postal_code: postalCode,
+              country: country,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (error) {
-      setErrorMessage(error.message ?? null);
+      if (confirmError) {
+        setErrorMessage(confirmError.message ?? 'Payment confirmation failed');
+      }
+    } catch (error) {
+      setErrorMessage('Payment failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   if (!clientSecret || !stripe || !elements) {

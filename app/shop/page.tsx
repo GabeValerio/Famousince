@@ -5,7 +5,31 @@ import { useCart } from "@/lib/CartContext";
 import { useRouter, useSearchParams } from 'next/navigation'; // Use 'next/navigation' for app directory
 import { supabase } from '@/lib/supabaseClient'; // Add this import
 import { ProductCard } from "../Home/components/ProductCard";
-import type { Product, ProductVariant } from "../Home/data/products";
+
+interface ProductVariant {
+	id: string;
+	size: string;
+	color: string;
+	price: number;
+	stock_quantity: number;
+}
+
+interface Product {
+	id: string;
+	name: string;
+	description: string;
+	front_image_url?: string;
+	back_image_url?: string;
+	base_price: number;
+	application: string;
+	product_type_id: string;
+	variants: ProductVariant[];
+	famousLine: string;
+	customization: {
+		topLine: string;
+		bottomLine: string;
+	};
+}
 
 const ProductList = () => {
 	const router = useRouter();
@@ -24,29 +48,41 @@ const ProductList = () => {
 						id,
 						size,
 						color,
-						price
+						price,
+						stock_quantity
 					)
 				`);
 
 			if (productsError) throw productsError;
 
 			if (productsData) {
-				const formattedProducts = productsData.map(p => ({
-					id: p.id,
-					name: p.name || 'FAMOUS SINCE',
-					description: p.description || '',
-					image: p.front_image_url,
-					price: p.base_price,
-					famousLine: p.description || 'BEING UNIQUE',
-					variants: (p.variants || []).map((v: { id: string; size: string; color?: string; price?: number }) => ({
-						id: v.id,
-						size: v.size,
-						color: v.color || 'Black', // Default to Black if no color specified
-						price: v.price || p.base_price
-					}))
-				}));
+				const formattedProducts = productsData.map(p => {
+					const description = p.description || 'BEING UNIQUE';
+					return {
+						id: p.id,
+						name: `Famous Since ${description} T-Shirt`,
+						description: description,
+						front_image_url: p.front_image_url,
+						back_image_url: p.back_image_url,
+						base_price: p.base_price,
+						application: p.application,
+						product_type_id: p.product_type_id,
+						variants: (p.variants || []).map((v: any) => ({
+							id: v.id,
+							size: v.size,
+							color: v.color,
+							price: v.price,
+							stock_quantity: v.stock_quantity
+						})),
+						famousLine: description,
+						customization: {
+							topLine: "FAMOUS SINCE",
+							bottomLine: description
+						}
+					};
+				});
 
-				const validProducts = formattedProducts.filter(p => p.image);
+				const validProducts = formattedProducts.filter(p => p.front_image_url);
 				const shuffledProducts = validProducts.sort(() => Math.random() - 0.5);
 				setProducts(shuffledProducts);
 			}

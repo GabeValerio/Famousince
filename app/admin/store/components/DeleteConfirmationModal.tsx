@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
@@ -13,15 +13,19 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   onConfirm,
   isDeleting = false,
 }) => {
+  const [error, setError] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handleConfirm = async () => {
     try {
+      setError(null);
       await onConfirm();
       // Only close if deletion was successful
       onClose();
     } catch (error) {
       console.error('Error during deletion:', error);
+      setError('Failed to delete product. Please try again.');
       // Don't close on error - let the user try again or cancel
     }
   };
@@ -46,6 +50,11 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
         <p className="text-white/80 mb-4">
           Are you sure you want to delete this product? This action cannot be undone.
         </p>
+        {error && (
+          <p className="text-red-400 mb-4 p-2 bg-red-500/10 border border-red-500/20 rounded">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}

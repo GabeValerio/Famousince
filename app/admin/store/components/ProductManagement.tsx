@@ -15,21 +15,26 @@ import {
 } from "@/components/ui/table";
 import { ChevronRight, ChevronDown, Pencil, Eye, Tag, Box, Download } from 'lucide-react';
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
-import EditProductModal from "./EditProductModal";
+import { EditProductModal } from "./EditProductModal";
 import Link from "next/link";
 import { downloadFamousPreset } from "@/app/utils/downloadFamousPreset";
+import { ProductType } from '@/types/products';
 
 interface Product {
   id: string;
   name: string;
-  description?: string | null;
+  description: string | null;
+  base_price: number;
   front_image_url?: string;
   back_image_url?: string;
-  base_price: number;
   application: string;
-  garment: string;
+  product_type_id: string;
   created_at: string;
   updated_at: string;
+  product_types?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface ProductVariant {
@@ -38,17 +43,24 @@ interface ProductVariant {
   size: string;
   color: string;
   price: number;
-  application: string;
-  garment: string;
+  stock_quantity: number;
   front_image_url?: string;
   back_image_url?: string;
 }
 
+interface ProductWithType extends Omit<Product, 'product_types'> {
+  product_types: {
+    id: string;
+    name: string;
+  };
+  variants: ProductVariant[];
+}
+
 const ProductManagement: React.FC = () => {
   const { data: session } = useSession();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductWithType[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -56,6 +68,9 @@ const ProductManagement: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isMobileView, setIsMobileView] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [loadingProductTypes, setLoadingProductTypes] = useState(true);
 
   useEffect(() => {
     const handleResize = () => {
@@ -76,56 +91,81 @@ const ProductManagement: React.FC = () => {
     };
   }, []);
 
-  // Fetch products and their variants
+  const fetchProductTypes = async () => {
+    setLoadingProductTypes(true);
+    try {
+      const { data, error } = await supabase
+        .from("product_types")
+        .select("*");
+
+      if (error) throw error;
+      setProductTypes(data || []);
+    } catch (error) {
+      console.error("Error fetching product types:", error);
+      setError("Failed to load product types");
+    } finally {
+      setLoadingProductTypes(false);
+    }
+  };
+
   const fetchProducts = async () => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          variants:product_variants(*)
+        `)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       setProducts(data || []);
+      setLoading(false);
     } catch (error) {
       setError('Failed to fetch products');
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    Promise.all([fetchProducts(), fetchProductTypes()]);
   }, []);
 
-  // Delete product handler
-  const handleDeleteProduct = async (productId: string) => {
-    if (!productId) return;
-    
+  // Get product type name
+  const getProductTypeName = (productTypeId: string) => {
+    const productType = productTypes.find(type => type.id === productTypeId);
+    return productType?.name || 'Loading...';
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deleteConfirm) return;
+    setIsDeleting(true);
+
     try {
-      setIsDeleting(true);
-      setError(null);
-      
-      const { error } = await supabase
-        .from('products')
+      // Delete all variants first
+      const { error: variantError } = await supabase
+        .from("product_variants")
         .delete()
-        .eq('id', productId);
+        .eq("product_id", deleteConfirm);
 
-      if (error) {
-        throw error;
-      }
+      if (variantError) throw variantError;
 
-      // Only update the UI after successful deletion
-      setProducts(products.filter(product => product.id !== productId));
-      
+      // Then delete the product
+      const { error: productError } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", deleteConfirm);
+
+      if (productError) throw productError;
+
+      setDeleteConfirm(null);
+      setIsDeleting(false);
+      fetchProducts();
+      setSuccess("Product deleted successfully!");
+      setTimeout(() => setSuccess(null), 2000);
     } catch (error) {
-      console.error('Error deleting product:', error);
-      setError('Failed to delete product');
-      throw error; // Propagate error to modal
-    } finally {
+      console.error("Error deleting product:", error);
+      setError("Failed to delete product");
       setIsDeleting(false);
     }
   };
@@ -144,18 +184,13 @@ const ProductManagement: React.FC = () => {
     setShowAddProduct(true);
   };
 
-  const handleProductUpdate = (updatedProduct: Product) => {
-    // Update the products list without fetching from the server
-    setProducts(prevProducts => 
-      prevProducts.map(p => 
-        p.id === updatedProduct.id ? {
-          ...p,
-          ...updatedProduct,
-          // Ensure description is properly handled
-          description: updatedProduct.description ?? undefined
-        } : p
-      )
-    );
+  const handleProductUpdate = () => {
+    // Show success message
+    setSuccess(editingProduct ? "Product updated successfully!" : "Product added successfully!");
+    // Clear success message after 2 seconds
+    setTimeout(() => setSuccess(null), 2000);
+    // Refresh products from server
+    fetchProducts();
   };
 
   // Render loading state
@@ -170,6 +205,18 @@ const ProductManagement: React.FC = () => {
 
   return (
     <div className="bg-black/50 backdrop-blur-sm rounded-lg border border-white/20 p-6 relative">
+      {success && (
+        <div className="mb-4 p-2 bg-green-500/10 border border-green-500/20 rounded text-green-400">
+          {success}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-2 bg-red-500/10 border border-red-500/20 rounded text-red-400">
+          {error}
+        </div>
+      )}
+
       {/* Product List */}
       {products.length === 0 ? (
         <div className="text-center py-8">
@@ -210,7 +257,7 @@ const ProductManagement: React.FC = () => {
                     <Tag className="h-3 w-3 mr-1" /> ${product.base_price.toFixed(2)}
                   </p>
                   <p className="text-xs text-white/60 capitalize truncate">
-                    {product.garment}
+                    {getProductTypeName(product.product_type_id)}
                   </p>
                 </div>
                 
@@ -244,10 +291,8 @@ const ProductManagement: React.FC = () => {
                         <p className="text-sm text-white/80">{product.application}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-white/60 uppercase mb-1">Variants</p>
-                        <p className="text-sm text-white/80">
-                          {variants.filter(v => v.product_id === product.id).length}
-                        </p>
+                        <p className="text-xs font-medium text-white/60 uppercase mb-1">Type</p>
+                        <p className="text-sm text-white/80">{getProductTypeName(product.product_type_id)}</p>
                       </div>
                     </div>
 
@@ -281,6 +326,25 @@ const ProductManagement: React.FC = () => {
                         Delete
                       </Button>
                     </div>
+
+                    {/* Variant information */}
+                    <div className="mt-2 space-y-2">
+                      {product.variants && product.variants.length > 0 ? (
+                        product.variants.map((variant) => (
+                          <div key={variant.id} className="flex items-center justify-between text-sm text-white/60">
+                            <span>
+                              {variant.size} - {variant.color}
+                            </span>
+                            <div className="flex items-center space-x-4">
+                              <span>${variant.price.toFixed(2)}</span>
+                              <span>Stock: {variant.stock_quantity}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-white/40 italic">No variants available</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -298,7 +362,7 @@ const ProductManagement: React.FC = () => {
                   <TableHead className="text-white/60">Description</TableHead>
                   <TableHead className="text-white/60">Base Price</TableHead>
                   <TableHead className="text-white/60">Application</TableHead>
-                  <TableHead className="text-white/60">Garment</TableHead>
+                  <TableHead className="text-white/60">Type</TableHead>
                   <TableHead className="text-white/60">Variants</TableHead>
                   <TableHead className="text-white/60">Actions</TableHead>
                 </TableRow>
@@ -343,9 +407,9 @@ const ProductManagement: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-white">${product.base_price.toFixed(2)}</TableCell>
                     <TableCell className="text-white/80">{product.application}</TableCell>
-                    <TableCell className="text-white/80">{product.garment}</TableCell>
+                    <TableCell className="text-white/80">{getProductTypeName(product.product_type_id)}</TableCell>
                     <TableCell className="text-white/80">
-                      {variants.filter(v => v.product_id === product.id).length}
+                      {product.variants?.length || 0}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -381,41 +445,36 @@ const ProductManagement: React.FC = () => {
               </TableBody>
             </Table>
           </div>
-          
-          {/* Add/Edit Product Modal */}
-          <EditProductModal
-            isOpen={showAddProduct}
-            onClose={() => {
-              setShowAddProduct(false);
-              setEditingProduct(null);
-            }}
-            editingProduct={editingProduct}
-            onProductUpdate={handleProductUpdate}
-          />
-          
-          {/* Delete Confirmation Modal */}
-          <DeleteConfirmationModal
-            isOpen={!!deleteConfirm}
-            onClose={() => {
-              if (!isDeleting) {
-                setDeleteConfirm(null);
-              }
-            }}
-            onConfirm={async () => {
-              if (deleteConfirm) {
-                await handleDeleteProduct(deleteConfirm);
-              }
-            }}
-            isDeleting={isDeleting}
-          />
-
-          {error && (
-            <div className="mt-4 p-2 bg-red-500/10 border border-red-500/20 rounded text-red-400">
-              {error}
-            </div>
-          )}
         </div>
       )}
+
+      {showAddProduct && (
+        <EditProductModal
+          isOpen={showAddProduct}
+          onClose={() => {
+            setShowAddProduct(false);
+            setEditingProduct(null);
+          }}
+          editingProduct={editingProduct}
+          onProductUpdated={handleProductUpdate}
+        />
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!deleteConfirm}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteConfirm(null);
+          }
+        }}
+        onConfirm={async () => {
+          if (deleteConfirm) {
+            await handleDeleteProduct();
+          }
+        }}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

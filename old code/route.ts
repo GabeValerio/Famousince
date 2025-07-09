@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { v2 as cloudinary, UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
+import { SERVER_MODELS } from '@/app/constants/models';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     const file = formData.get('file');
     const uploadType = formData.get('uploadType');
     const bottomLine = formData.get('bottomLine');
-    const modelPath = formData.get('modelId'); // This is now the full image path
+    const modelId = formData.get('modelId');
 
     if (!file || !(file instanceof Blob)) {
       console.error('Missing or invalid file in request');
@@ -75,37 +76,30 @@ export async function POST(request: Request) {
       let transformations: any[] = [{ fetch_format: 'auto', quality: 'auto' }];
 
       if (uploadType === 'tshirt-design') {
-        if (!bottomLine || !modelPath) {
-          console.error('Missing required fields for tshirt-design:', { bottomLine, modelPath });
+        if (!bottomLine || !modelId) {
+          console.error('Missing required fields for tshirt-design:', { bottomLine, modelId });
           return NextResponse.json(
             { error: 'Missing required fields for tshirt design' },
             { status: 400 }
           );
         }
 
-        // Extract model name from the path
-        const modelName = modelPath.toString().split('/').pop()?.split('.')[0] || 'Unknown';
+        const model = SERVER_MODELS.find(m => m.id === modelId);
+        if (!model) {
+          console.error('Invalid model ID:', modelId);
+          return NextResponse.json(
+            { error: 'Invalid model ID' },
+            { status: 400 }
+          );
+        }
 
         // Clean up bottom line text for filename
         const cleanBottomLine = bottomLine.toString().replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        fileName = `Famous_Since_${cleanBottomLine}_${modelName}`;
+        fileName = `Famous_Since_${cleanBottomLine}_${model.name.replace(/\s+/g, '_')}`;
 
         transformations.push({ 
           width: 600,
           height: 750,
-          quality: "auto",
-          fetch_format: "auto",
-          dpr: "2.0"
-        });
-      } else if (uploadType === 'product-type') {
-        folder = 'product-types';
-        const timestamp = Date.now();
-        fileName = `product_type_${timestamp}`;
-        
-        transformations.push({
-          width: 800,
-          height: 1000,
-          crop: 'fit',
           quality: "auto",
           fetch_format: "auto",
           dpr: "2.0"

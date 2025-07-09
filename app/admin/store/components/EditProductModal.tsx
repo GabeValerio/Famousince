@@ -2,344 +2,352 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
+import { ProductType, Product as BaseProduct } from '@/types/products';
+import { Input } from "@/components/ui/input";
 
 interface Product {
   id: string;
   name: string;
-  description?: string | null;
+  description: string | null;
+  base_price: number;
   front_image_url?: string;
   back_image_url?: string;
-  base_price: number;
   application: string;
-  garment: string;
+  product_type_id: string;
   created_at: string;
   updated_at: string;
+}
+
+interface ProductVariant {
+  id: string;
+  product_id: string;
+  size: string;
+  color: string;
+  price: number;
+  stock_quantity: number;
+  front_image_url?: string;
+  back_image_url?: string;
 }
 
 interface EditProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingProduct: Product | null;
-  onProductUpdate: (product: Product) => void;
+  onProductUpdated: () => void;
 }
 
-const EditProductModal: React.FC<EditProductModalProps> = ({
+// Default sizes and colors that can be customized
+const DEFAULT_SIZES = ["S", "M", "L", "XL", "2XL"];
+const DEFAULT_COLORS = ["Black", "White"];
+
+interface VariantStock {
+  size: string;
+  color: string;
+  quantity: number;
+}
+
+export const EditProductModal = ({
   isOpen,
   onClose,
   editingProduct,
-  onProductUpdate,
-}) => {
+  onProductUpdated,
+}: EditProductModalProps) => {
   const [name, setName] = useState(editingProduct?.name || "");
-  const [description, setDescription] = useState((editingProduct?.description || "").toUpperCase());
+  const [description, setDescription] = useState(editingProduct?.description || "");
+  const [basePrice, setBasePrice] = useState(editingProduct?.base_price?.toString() || "");
+  const [application, setApplication] = useState(editingProduct?.application || "");
   const [frontImage, setFrontImage] = useState<File | null>(null);
   const [backImage, setBackImage] = useState<File | null>(null);
-  const [basePrice, setBasePrice] = useState<string>(editingProduct?.base_price?.toString() || "");
-  const [application, setApplication] = useState(editingProduct?.application || "Screen Press");
-  const [garment, setGarment] = useState(editingProduct?.garment || "T-Shirt");
-  const [sizes, setSizes] = useState<string[]>(["S", "M", "L", "XL", "2XL"]);
-  const [colors, setColors] = useState<string[]>(["Black"]);
+  const [productTypeId, setProductTypeId] = useState(editingProduct?.product_type_id || "");
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [addError, setAddError] = useState("");
   const [addSuccess, setAddSuccess] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // New state for managing sizes and colors
+  const [availableSizes, setAvailableSizes] = useState<string[]>(DEFAULT_SIZES);
+  const [availableColors, setAvailableColors] = useState<string[]>(DEFAULT_COLORS);
+  const [newSize, setNewSize] = useState("");
+  const [newColor, setNewColor] = useState("");
 
-  // Add state for modal position
-  const [modalPosition, setModalPosition] = useState({ top: 0 });
+  // Add state for variant stock quantities
+  const [variantStocks, setVariantStocks] = useState<Record<string, number>>({});
 
-  // Add useEffect to update form state when editingProduct changes
   useEffect(() => {
     if (editingProduct) {
       setName(editingProduct.name || "");
-      setDescription((editingProduct.description || "").toUpperCase());
+      setDescription(editingProduct.description || "");
       setBasePrice(editingProduct.base_price?.toString() || "");
       setApplication(editingProduct.application || "Screen Press");
-      setGarment(editingProduct.garment || "T-Shirt");
-      // Reset images since we can't populate File objects
       setFrontImage(null);
       setBackImage(null);
+      setProductTypeId(editingProduct.product_type_id || '');
+      
+      // Fetch existing variants to populate sizes, colors, and stock quantities
+      fetchExistingVariants(editingProduct.id);
     }
   }, [editingProduct]);
 
-  // Update modal position when opened
   useEffect(() => {
     if (isOpen) {
-      // Get current scroll position and add a small offset (e.g., 20px)
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const topPosition = Math.max(scrollTop + 20, 20); // Ensure minimum 20px from top
-      setModalPosition({ top: topPosition });
+      fetchProductTypes();
     }
   }, [isOpen]);
 
-  // Handle image upload with error handling and progress
-  const handleImageUpload = async (file: File) => {
+  const fetchExistingVariants = async (productId: string) => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const { data: variants, error } = await supabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', productId);
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-      });
+      if (error) throw error;
 
-      if (!response.ok) {
-        throw new Error('Failed to upload image');
+      if (variants && variants.length > 0) {
+        // Extract unique sizes and colors
+        const sizes = [...new Set(variants.map(v => v.size))];
+        const colors = [...new Set(variants.map(v => v.color))];
+        
+        // Create stock quantity map
+        const stockMap: Record<string, number> = {};
+        variants.forEach(v => {
+          stockMap[`${v.size}-${v.color}`] = v.stock_quantity;
+        });
+        
+        setAvailableSizes(sizes);
+        setAvailableColors(colors);
+        setVariantStocks(stockMap);
       }
-
-      const data = await response.json();
-      return data.secure_url;
     } catch (error) {
-      setAddError('Failed to upload image');
-      return null;
+      console.error('Error fetching variants:', error);
     }
+  };
+
+  const fetchProductTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('product_types')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setProductTypes(data);
+    } catch (error) {
+      console.error('Error fetching product types:', error);
+    }
+  };
+
+  const handleAddSize = () => {
+    if (newSize && !availableSizes.includes(newSize)) {
+      setAvailableSizes([...availableSizes, newSize]);
+      setNewSize("");
+    }
+  };
+
+  const handleAddColor = () => {
+    if (newColor && !availableColors.includes(newColor)) {
+      setAvailableColors([...availableColors, newColor]);
+      setNewColor("");
+    }
+  };
+
+  const handleRemoveSize = (size: string) => {
+    setAvailableSizes(availableSizes.filter(s => s !== size));
+  };
+
+  const handleRemoveColor = (color: string) => {
+    setAvailableColors(availableColors.filter(c => c !== color));
+  };
+
+  const handleStockChange = (size: string, color: string, quantity: string) => {
+    const key = `${size}-${color}`;
+    const newQuantity = parseInt(quantity) || 0;
+    setVariantStocks({
+      ...variantStocks,
+      [key]: newQuantity
+    });
   };
 
   const resetForm = () => {
     setName("");
     setDescription("");
-    setFrontImage(null);
-    setBackImage(null);
     setBasePrice("");
     setApplication("Screen Press");
-    setGarment("T-Shirt");
-    setSizes(["S", "M", "L", "XL", "2XL"]);
-    setColors(["Black"]);
+    setFrontImage(null);
+    setBackImage(null);
     setAddError("");
     setAddSuccess("");
     setIsSubmitting(false);
+    setProductTypeId('');
+    setAvailableSizes(DEFAULT_SIZES);
+    setAvailableColors(DEFAULT_COLORS);
+    setVariantStocks({});
     onClose();
-  };
-
-  const checkDuplicateDescription = async (description: string) => {
-    if (!description.trim()) return false;
-    
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id")
-        .eq("description", description.trim())
-        .neq("id", editingProduct?.id || '') // Exclude current product when editing
-        .maybeSingle();
-
-      if (error) throw error;
-      return !!data; // Returns true if a duplicate exists
-    } catch (error) {
-      console.error("Error checking duplicate description:", error);
-      return false;
-    }
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Prevent multiple submissions
-    if (isSubmitting) return;
-    
+    setAddError("");
+    setAddSuccess("");
+    setIsSubmitting(true);
+
     try {
-      setIsSubmitting(true);
-      console.log("=== Starting form submission ===");
-      console.log("Form values:", {
-        name,
-        description,
-        basePrice,
-        application,
-        garment,
-        isEditing: !!editingProduct
-      });
-
-      setAddError("");
-      setAddSuccess("");
-
-      if (!name.trim()) {
-        setAddError("Product name is required");
-        return;
-      }
-
-      if (!basePrice || isNaN(Number(basePrice))) {
-        setAddError("Valid base price is required");
-        return;
-      }
-
-      // Check for exceptions in description
-      if (description.trim()) {
-        const words = description.trim().split(/\s+/).map(word => word.toUpperCase());
-        
-        const { data: exceptions, error: exceptionsError } = await supabase
-          .from('exceptions')
-          .select('word')
-          .in('word', words);
-
-        if (exceptionsError) {
-          throw exceptionsError;
-        }
-
-        if (exceptions && exceptions.length > 0) {
-          setAddError(
-            "While we appreciate your desire to Stay Famous for this, we aim to keep our product descriptions positive and uplifting. " +
-            "Please consider revising the description to better align with our community values."
-          );
-          return;
-        }
-      }
-
-      // Check for duplicate description
-      if (description.trim()) {
-        const hasDuplicate = await checkDuplicateDescription(description);
-        if (hasDuplicate) {
-          setAddError("A product with this description already exists. Please use a unique description.");
-          return;
-        }
-      }
-
-      // Upload images if provided
       let frontImageUrl = editingProduct?.front_image_url;
       let backImageUrl = editingProduct?.back_image_url;
 
+      // Handle front image upload
       if (frontImage) {
-        frontImageUrl = await handleImageUpload(frontImage);
+        const frontImageName = `${Date.now()}_${frontImage.name}`;
+        const { error: frontUploadError } = await supabase.storage
+          .from("products")
+          .upload(frontImageName, frontImage);
+
+        if (frontUploadError) throw frontUploadError;
+
+        const { data: frontUrlData } = supabase.storage
+          .from("products")
+          .getPublicUrl(frontImageName);
+        frontImageUrl = frontUrlData.publicUrl;
       }
+
+      // Handle back image upload
       if (backImage) {
-        backImageUrl = await handleImageUpload(backImage);
+        const backImageName = `${Date.now()}_${backImage.name}`;
+        const { error: backUploadError } = await supabase.storage
+          .from("products")
+          .upload(backImageName, backImage);
+
+        if (backUploadError) throw backUploadError;
+
+        const { data: backUrlData } = supabase.storage
+          .from("products")
+          .getPublicUrl(backImageName);
+        backImageUrl = backUrlData.publicUrl;
       }
+
+      // Create or update product
+      const productData = {
+        name,
+        description,
+        base_price: parseFloat(basePrice),
+        application,
+        front_image_url: frontImageUrl,
+        back_image_url: backImageUrl,
+        product_type_id: productTypeId,
+      };
+
+      let productId = editingProduct?.id;
 
       if (editingProduct) {
         // Update existing product
-        console.log("=== Updating existing product ===");
-        console.log("Current product data:", editingProduct);
-        
-        const updateData: Partial<Product> = {
-          name: name.trim(),
-          description: description.trim() || null,
-          base_price: parseFloat(basePrice),
-          application: application.trim(),
-          garment: garment.trim(),
-          front_image_url: frontImageUrl,
-          back_image_url: backImageUrl,
-        };
-        
-        console.log("Sending update:", updateData);
-
-        const { data: updatedProduct, error: updateError } = await supabase
+        const { error: updateError } = await supabase
           .from("products")
-          .update(updateData)
-          .eq("id", editingProduct.id)
+          .update(productData)
+          .eq("id", editingProduct.id);
+
+        if (updateError) throw updateError;
+      } else {
+        // Create new product
+        const { data: newProduct, error: createError } = await supabase
+          .from("products")
+          .insert([productData])
           .select()
           .single();
 
-        if (updateError) {
-          console.error("Update error:", updateError);
-          throw updateError;
-        }
-
-        console.log("Product updated:", updatedProduct);
-
-        // Update variants
-        const { error: variantsError } = await supabase
-          .from("product_variants")
-          .update({ 
-            price: parseFloat(basePrice),
-            application: application.trim(),
-            garment: garment.trim(),
-            front_image_url: frontImageUrl,
-            back_image_url: backImageUrl
-          })
-          .eq("product_id", editingProduct.id);
-
-        if (variantsError) {
-          console.error("Variants update error:", variantsError);
-          throw variantsError;
-        }
-
-        setAddSuccess("Product updated successfully!");
-        // Ensure we pass the complete product data
-        onProductUpdate({
-          ...editingProduct,
-          ...updatedProduct,
-          // Ensure description is properly handled
-          description: updatedProduct.description ?? undefined
-        });
-        resetForm();
-        onClose();
-      } else {
-        // Insert new product
-        console.log("=== Inserting new product ===");
-        const productData = {
-          name: name.trim(),
-          description: description.trim() || null,
-          front_image_url: frontImageUrl,
-          back_image_url: backImageUrl,
-          base_price: parseFloat(basePrice),
-          application: application.trim(),
-          garment: garment.trim(),
-        };
-
-        console.log("New product data:", productData);
-
-        const { data: newProduct, error: insertError } = await supabase
-          .from("products")
-          .insert(productData)
-          .select()
-          .single();
-
-        console.log("Insert response:", { newProduct, error: insertError });
-
-        if (insertError) throw insertError;
-
-        // Create variants for new product
-        const variantsToInsert = sizes
-          .filter(size => size.trim())
-          .flatMap(size =>
-            colors
-              .filter(color => color.trim())
-              .map(color => ({
-                product_id: newProduct.id,
-                size,
-                color,
-                application: application.trim(),
-                garment: garment.trim(),
-                price: parseFloat(basePrice),
-                front_image_url: frontImageUrl,
-                back_image_url: backImageUrl,
-              }))
-          );
-
-        if (variantsToInsert.length > 0) {
-          const { error: variantsError } = await supabase
-            .from("product_variants")
-            .insert(variantsToInsert);
-
-          if (variantsError) throw variantsError;
-        }
-
-        console.log("Insert successful!");
-        setAddSuccess("Product added successfully!");
-        onProductUpdate(newProduct);
-        resetForm();
+        if (createError) throw createError;
+        productId = newProduct.id;
       }
-    } catch (error: any) {
-      console.error("=== Error in form submission ===");
-      console.error("Error details:", error);
-      
-      // Handle unique constraint violation
-      if (error.code === '23505' && error.message.includes('unique_product_description')) {
-        setAddError("A product with this description already exists. Please use a unique description.");
-      } else {
-        setAddError(error.message || "Failed to process product");
+
+      // Create variants for each size and color
+      if (productId) {
+        // First, get existing variants to avoid duplicates
+        const { data: existingVariants } = await supabase
+          .from('product_variants')
+          .select('*')
+          .eq('product_id', productId);
+
+        // Create a map of existing variants for quick lookup
+        const existingVariantMap = new Map(
+          existingVariants?.map(v => [`${v.size}-${v.color}`, v]) || []
+        );
+
+        // Create or update variants for each size and color
+        for (const size of availableSizes) {
+          for (const color of availableColors) {
+            const variantKey = `${size}-${color}`;
+            const existingVariant = existingVariantMap.get(variantKey);
+
+            const variantData = {
+              product_id: productId,
+              size,
+              color,
+              price: parseFloat(basePrice), // Using base price for all variants
+              stock_quantity: variantStocks[variantKey] || 0, // Use the stock quantity from state
+              front_image_url: frontImageUrl,
+              back_image_url: backImageUrl,
+            };
+
+            if (existingVariant) {
+              // Update existing variant
+              await supabase
+                .from('product_variants')
+                .update(variantData)
+                .eq('id', existingVariant.id);
+            } else {
+              // Create new variant
+              await supabase
+                .from('product_variants')
+                .insert([variantData]);
+            }
+          }
+        }
+
+        // Delete variants that no longer exist
+        const currentVariantKeys = availableSizes.flatMap(size => 
+          availableColors.map(color => `${size}-${color}`)
+        );
+        const currentVariantKeysSet = new Set(currentVariantKeys);
+
+        for (const variant of existingVariants || []) {
+          const variantKey = `${variant.size}-${variant.color}`;
+          if (!currentVariantKeysSet.has(variantKey)) {
+            await supabase
+              .from('product_variants')
+              .delete()
+              .eq('id', variant.id);
+          }
+        }
       }
+
+      setAddSuccess("Product saved successfully!");
+      onProductUpdated();
+      resetForm();
+    } catch (error) {
+      console.error("Error saving product:", error);
+      setAddError("Failed to save product. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Get the product type name for display
+  const getProductTypeName = () => {
+    const productType = productTypes.find(type => type.id === productTypeId);
+    return productType?.name || '';
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center" style={{ marginTop: '-75px' }}>
       {/* Semi-transparent backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       
       {/* Modal container with max width for different screen sizes */}
-      <div className="relative w-full max-w-[95%] md:max-w-[85%] lg:max-w-4xl mx-auto bg-black rounded-lg border border-white/20 shadow-lg overflow-hidden">
+      <div className="relative w-full max-w-[95%] md:max-w-[85%] lg:max-w-4xl mx-auto bg-black rounded-lg border border-white/20 shadow-lg overflow-y-auto" style={{ maxHeight: 'calc(100vh - 80px)' }}>
         {/* Close button */}
         <button
-          className="absolute top-2 right-2 text-white/60 hover:text-white text-xl transition-colors z-10"
+          className="sticky top-2 right-2 float-right text-white/60 hover:text-white text-xl transition-colors z-10 px-2"
           onClick={() => {
             if (editingProduct) {
               const confirmLeave = window.confirm("Are you sure you want to discard your changes?");
@@ -355,7 +363,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         </button>
 
         {/* Modal content */}
-        <div className="max-h-[80vh] overflow-y-auto p-6">
+        <div className="p-6">
           <h3 
             className="text-lg font-semibold mb-4 text-white"
             style={{ fontFamily: 'Chalkduster, fantasy' }}
@@ -410,6 +418,24 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-1">Product Type *</label>
+                  <select
+                    value={productTypeId}
+                    onChange={(e) => setProductTypeId(e.target.value)}
+                    className="mt-1 block w-full rounded-md bg-white/10 border-white/20 text-white focus:border-white/40"
+                    required
+                    disabled={isSubmitting}
+                  >
+                    <option value="">Select a product type</option>
+                    {productTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-1">Application *</label>
@@ -419,19 +445,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                     onChange={(e) => setApplication(e.target.value)}
                     className="mt-1 block w-full rounded-md bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-white/40"
                     placeholder="Application"
-                    required
-                    disabled
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-white/80 mb-1">Garment *</label>
-                  <input
-                    type="text"
-                    value={garment}
-                    onChange={(e) => setGarment(e.target.value)}
-                    className="mt-1 block w-full rounded-md bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-white/40"
-                    placeholder="Garment"
                     required
                     disabled
                   />
@@ -493,20 +506,26 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Sizes</label>
+                  <label className="block text-sm font-medium text-white/80 mb-2">Available Sizes</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {sizes.map((size) => (
-                      <div key={size} className="text-sm text-white/80 p-2 bg-white/10 border border-white/20 rounded">
-                        {size}
+                    {productTypeId && availableSizes.length > 0 ? (
+                      availableSizes.map((size) => (
+                        <div key={size} className="text-sm text-white/80 p-2 bg-white/10 border border-white/20 rounded">
+                          {size}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-white/60 col-span-3">
+                        Select a product type to see available sizes
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">Colors</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {colors.map((color) => (
+                    {availableColors.map((color) => (
                       <div key={color} className="text-sm text-white/80 p-2 bg-white/10 border border-white/20 rounded">
                         {color}
                       </div>
@@ -516,6 +535,103 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
               </div>
             </div>
             
+            {/* Size Management */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-white/80 mb-2">Manage Sizes</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {availableSizes.map((size) => (
+                  <div key={size} className="flex items-center bg-white/10 rounded px-2 py-1">
+                    <span className="text-sm text-white/80 mr-2">{size}</span>
+                    <button
+                      onClick={() => handleRemoveSize(size)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={newSize}
+                  onChange={(e) => setNewSize(e.target.value)}
+                  placeholder="Add new size"
+                  className="flex-1"
+                />
+                <Button onClick={handleAddSize} disabled={!newSize}>
+                  Add Size
+                </Button>
+              </div>
+            </div>
+
+            {/* Color Management */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-white/80 mb-2">Manage Colors</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {availableColors.map((color) => (
+                  <div key={color} className="flex items-center bg-white/10 rounded px-2 py-1">
+                    <span className="text-sm text-white/80 mr-2">{color}</span>
+                    <button
+                      onClick={() => handleRemoveColor(color)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={newColor}
+                  onChange={(e) => setNewColor(e.target.value)}
+                  placeholder="Add new color"
+                  className="flex-1"
+                />
+                <Button onClick={handleAddColor} disabled={!newColor}>
+                  Add Color
+                </Button>
+              </div>
+            </div>
+
+            {/* Variant Stock Management */}
+            <div className="mt-6">
+              <h4 className="text-lg font-medium text-white mb-4">Variant Stock Management</h4>
+              <div className="grid gap-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        <th className="text-left text-white/60 px-4 py-2">Size</th>
+                        <th className="text-left text-white/60 px-4 py-2">Color</th>
+                        <th className="text-left text-white/60 px-4 py-2">Stock Quantity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {availableSizes.map(size => (
+                        availableColors.map(color => (
+                          <tr key={`${size}-${color}`} className="border-t border-white/10">
+                            <td className="px-4 py-2 text-white">{size}</td>
+                            <td className="px-4 py-2 text-white">{color}</td>
+                            <td className="px-4 py-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                value={variantStocks[`${size}-${color}`] || 0}
+                                onChange={(e) => handleStockChange(size, color, e.target.value)}
+                                className="w-24 bg-white/10 border-white/20 text-white"
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-4 border-t border-white/20">
               <button
                 type="button"
@@ -559,6 +675,4 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       </div>
     </div>
   );
-};
-
-export default EditProductModal; 
+}; 

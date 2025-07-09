@@ -11,13 +11,18 @@ import { useRouter } from "next/navigation";
 import Image from 'next/image';
 
 interface CartItem {
-  id: string | number;
+  id: string;
+  product_id: string;
+  variant_id: string;
   name: string;
+  description: string;
   price: number;
   quantity: number;
+  front_image_url?: string;
+  back_image_url?: string;
   image?: string;
-  size?: string;
-  color?: string;
+  size: string;
+  color: string;
   priceID?: string;
   isSubscription?: boolean;
   freeShipping?: boolean;

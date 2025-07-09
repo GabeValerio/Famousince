@@ -1,15 +1,56 @@
+'use client';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarContext';
+import { cn } from '@/lib/utils';
+import { Home, Store, Layers, Settings, CreditCard, Package, Server, ShoppingCart } from 'lucide-react';
 
 export function AdminNav() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   const navItems = [
-    { name: 'Store', href: '/admin/store' },
-    { name: 'Exceptions', href: '/admin/exceptions' },
-    { name: 'Site Configuration', href: '/admin/site-config' },
+    {
+      title: "Products",
+      href: "/admin/store",
+      icon: <Store className="h-4 w-4" />,
+    },
+    {
+      title: "Product Types",
+      href: "/admin/product-types",
+      icon: <Package className="h-4 w-4" />,
+    },
+    {
+      title: "Home Display",
+      href: "/admin/homedisplay",
+      icon: <Home className="h-4 w-4" />,
+    },
+    {
+      title: "Exception Table",
+      href: "/admin/exceptions",
+      icon: <Layers className="h-4 w-4" />,
+    },
+    {
+      title: "Orders",
+      href: "/admin/orders",
+      icon: <ShoppingCart className="h-4 w-4" />,
+    },
+    {
+      title: "Stripe Setup",
+      href: "/admin/stripe",
+      icon: <CreditCard className="h-4 w-4" />,
+    },
+    {
+      title: "Hosting Site",
+      href: "/admin/hosting",
+      icon: <Server className="h-4 w-4" />,
+    },
+    {
+      title: "Site Config",
+      href: "/admin/site-config",
+      icon: <Settings className="h-4 w-4" />,
+    },
   ];
 
   const handleNavClick = () => {
@@ -59,13 +100,13 @@ export function AdminNav() {
                 key={item.href}
                 href={item.href}
                 onClick={handleNavClick}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  pathname === item.href
-                    ? 'bg-white !text-black'
-                    : 'text-white hover:bg-white/10'
-                }`}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors',
+                  pathname === item.href ? 'bg-white !text-black' : 'text-white hover:bg-white/10'
+                )}
               >
-                {item.name}
+                {item.icon}
+                {item.title}
               </Link>
             ))}
           </nav>

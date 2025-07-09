@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ShoppingCart, Loader2 } from "lucide-react"
-import ModelSelector, { Model, MODELS } from "@/app/components/ModelSelector"
+import ModelSelector from "@/app/components/ModelSelector"
 import StayFamousPreset, { DEFAULT_PRESET, StayFamousText } from "@/app/components/StayFamousPreset"
 import Image from "next/image"
 import styled from "styled-components"
@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation"
 import React from "react"
 import { createProductWithImage, checkExistingProduct } from "@/app/utils/productUtils"
 import { generateAndUploadImage } from "@/app/utils/imageUtils"
+import { supabase } from "@/lib/supabaseClient"
 
 const CustomizationContainer = styled.div`
   display: flex;
@@ -105,6 +106,11 @@ const ErrorMessage = styled.div`
   color: #ef4444;
   font-size: 14px;
   margin-top: 8px;
+  padding: 8px 12px;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+  text-align: center;
+  width: 100%;
 `;
 
 const ButtonGroup = styled.div`
@@ -123,6 +129,29 @@ const ActionButtons = styled.div`
 
 const SIZES = ["S", "M", "L", "XL", "2XL"] as const;
 
+interface LoadingState {
+  isLoading: boolean;
+  step: 'idle' | 'generating_image' | 'checking_product' | 'creating_product' | 'adding_to_cart' | 'redirecting';
+  error: string | null;
+}
+
+interface ProductType {
+  id: string;
+  name: string;
+  active: boolean;
+  images?: ProductTypeImage[];
+  base_price: number;
+  is_default: boolean;
+}
+
+interface ProductTypeImage {
+  id: string;
+  product_type_id: string;
+  image_path: string;
+  vertical_offset: number;
+  is_default_model: boolean;
+}
+
 interface SizeButtonProps {
   size: string;
   isSelected: boolean;
@@ -134,6 +163,8 @@ interface ColorButtonProps {
   isSelected: boolean;
   onSelect: (color: string) => void;
 }
+
+const COLORS = ["Black", "White"] as const;
 
 const SizeButton = React.memo(({ size, isSelected, onSelect }: SizeButtonProps) => (
   <button
@@ -173,12 +204,6 @@ const ColorButton = React.memo(({ color, isSelected, onSelect }: ColorButtonProp
 
 ColorButton.displayName = 'ColorButton';
 
-interface LoadingState {
-  isLoading: boolean;
-  step: 'idle' | 'generating_image' | 'checking_product' | 'creating_product' | 'adding_to_cart' | 'redirecting';
-  error: string | null;
-}
-
 export default function StayFamousPage({ params }: { params: { description: string } }) {
   // Convert underscores back to spaces and decode URI component
   const description = decodeURIComponent(params.description).replace(/_+/g, ' ');
@@ -191,20 +216,19 @@ export default function StayFamousPage({ params }: { params: { description: stri
 function StayFamousContent({ description }: { description: string }) {
   const router = useRouter();
   const { addToCart } = useCart();
-  const [selectedModel, setSelectedModel] = useState<Model>(MODELS[0])
-  const [customLine, setCustomLine] = useState("")
-  const [originalDescription, setOriginalDescription] = useState(description)
-  const [textPreset, setTextPreset] = useState<StayFamousText>(DEFAULT_PRESET)
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [expandedBy, setExpandedBy] = useState<'cart' | 'buy' | null>(null)
-  const [selectedSize, setSelectedSize] = useState<string | null>(null)
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
-  const [quantity, setQuantity] = useState(1)
+  const [selectedProductType, setSelectedProductType] = useState<string>('');
+  const [customLine, setCustomLine] = useState("");
+  const [originalDescription, setOriginalDescription] = useState(description);
+  const [textPreset, setTextPreset] = useState<StayFamousText>(DEFAULT_PRESET);
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [quantity, setQuantity] = useState(1);
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: false,
     step: 'idle',
     error: null
   });
+  const [selectedProductPrice, setSelectedProductPrice] = useState<number>(0);
   const imageContainerRef = React.useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
@@ -212,6 +236,127 @@ function StayFamousContent({ description }: { description: string }) {
   const [bottomFontSize, setBottomFontSize] = useState(22);
   const [shouldWrapBottom, setShouldWrapBottom] = useState(false);
   const [formattedBottomText, setFormattedBottomText] = useState(description);
+  const [productSizes, setProductSizes] = useState<Array<{ id: string, size: string }>>([]);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [selectedModelPath, setSelectedModelPath] = useState<string | null>(null);
+  const [selectedVerticalOffset, setSelectedVerticalOffset] = useState(0);
+  const [selectedModelTypeId, setSelectedModelTypeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        await Promise.all([
+          fetchProductTypes(),
+          fetchSizes()
+        ]);
+        setLoadingState(prev => ({ ...prev, isLoading: false }));
+      } catch (error) {
+        setLoadingState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: 'Failed to initialize data'
+        }));
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  const fetchProductTypes = async () => {
+    try {
+      const { data: types, error: typesError } = await supabase
+        .from('product_types')
+        .select('*')
+        .eq('active', true)
+        .order('name');
+
+      if (typesError) throw typesError;
+
+      const { data: images, error: imagesError } = await supabase
+        .from('product_type_images')
+        .select('*')
+        .in('product_type_id', types.map(t => t.id));
+
+      if (imagesError) throw imagesError;
+
+      const typesWithImages = types.map(type => ({
+        ...type,
+        images: images.filter((img: ProductTypeImage) => img.product_type_id === type.id) || []
+      }));
+
+      setProductTypes(typesWithImages);
+      
+      // Find the default product type
+      const defaultType = typesWithImages.find(type => type.is_default);
+      if (defaultType) {
+        setSelectedProductType(defaultType.id);
+        setSelectedProductPrice(defaultType.base_price);
+        
+        // Find the default model for this product type
+        const defaultModel = defaultType.images?.find((img: ProductTypeImage) => img.is_default_model);
+        if (defaultModel) {
+          handleModelSelect(defaultModel.image_path, defaultModel.vertical_offset, defaultType.id);
+        }
+      } else if (typesWithImages.length > 0) {
+        // Fallback to first product type if no default is set
+        setSelectedProductType(typesWithImages[0].id);
+        setSelectedProductPrice(typesWithImages[0].base_price);
+      }
+    } catch (error) {
+      setLoadingState(prev => ({
+        ...prev,
+        error: 'Failed to fetch product types'
+      }));
+    }
+  };
+
+  const fetchSizes = async () => {
+    if (!selectedProductType) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('product_sizes')
+        .select('id, size')
+        .eq('product_type_id', selectedProductType)
+        .order('size_order', { ascending: true });
+
+      if (error) throw error;
+      setProductSizes(data || []);
+      if (data && data.length > 0) {
+        setSelectedSize(data[0].size);
+      }
+    } catch (error) {
+      setLoadingState(prev => ({
+        ...prev,
+        error: 'Failed to fetch sizes'
+      }));
+    }
+  };
+
+  // Fetch sizes when product type changes
+  useEffect(() => {
+    fetchSizes();
+  }, [selectedProductType]);
+
+  // Update price when product type changes
+  useEffect(() => {
+    if (selectedProductType) {
+      const selectedType = productTypes.find(type => type.id === selectedProductType);
+      if (selectedType) {
+        setSelectedProductPrice(selectedType.base_price);
+      }
+    }
+  }, [selectedProductType, productTypes]);
+
+  const handleModelSelect = useCallback((modelPath: string, verticalOffset: number, productTypeId: string) => {
+    setSelectedModelPath(modelPath);
+    setSelectedVerticalOffset(verticalOffset);
+    setSelectedModelTypeId(productTypeId);
+    setSelectedSize(''); // Reset size when model changes
+    
+    // Reset any error states
+    setLoadingState(prev => ({ ...prev, error: null }));
+  }, []);
 
   useEffect(() => {
     setCustomLine(description);
@@ -263,7 +408,25 @@ function StayFamousContent({ description }: { description: string }) {
     }
   }), [textPreset, topFontSize, bottomFontSize, formattedBottomText]);
 
-  const getLoadingMessage = (step: LoadingState['step']) => {
+  // Add a function to get a shorter loading message for mobile
+  const getLoadingMessage = (step: LoadingState['step'], isMobile: boolean) => {
+    if (isMobile) {
+      switch (step) {
+        case 'generating_image':
+          return 'Generating...';
+        case 'checking_product':
+          return 'Checking...';
+        case 'creating_product':
+          return 'Creating...';
+        case 'adding_to_cart':
+          return 'Adding...';
+        case 'redirecting':
+          return 'Redirecting...';
+        default:
+          return 'Processing...';
+      }
+    }
+
     switch (step) {
       case 'generating_image':
         return 'Generating your custom design...';
@@ -289,11 +452,17 @@ function StayFamousContent({ description }: { description: string }) {
     try {
       setLoadingState(prev => ({ ...prev, step: 'generating_image', error: null }));
       
+      // Get the product type name
+      const selectedType = productTypes.find(type => type.id === selectedModelTypeId);
+      if (!selectedType) {
+        throw new Error('Selected product type not found');
+      }
+
       // Generate the customized image
       const customImageUrl = await generateAndUploadImage(
         imageContainerRef.current!,
         customTextPreset,
-        selectedModel.id
+        selectedModelTypeId!
       );
 
       if (!customImageUrl) {
@@ -301,12 +470,12 @@ function StayFamousContent({ description }: { description: string }) {
       }
 
       return {
-        id: `custom-${selectedModel.id}-${selectedSize}-${selectedColor}-${encodeURIComponent(customTextPreset.bottomLine.text)}`,
+        id: `custom-${selectedModelTypeId}-${selectedSize}-${selectedColor}-${encodeURIComponent(customTextPreset.bottomLine.text)}`,
         product_id: 'custom',
         variant_id: `${selectedSize}-${selectedColor}`,
-        name: `Famous Since ${customTextPreset.bottomLine.text} T-Shirt`,
+        name: `Famous Since ${selectedType.name}`,
         description: customTextPreset.bottomLine.text,
-        price: 38.00,
+        price: selectedProductPrice,
         quantity: quantity,
         image: customImageUrl,
         size: selectedSize,
@@ -324,7 +493,7 @@ function StayFamousContent({ description }: { description: string }) {
       }));
       return null;
     }
-  }, [selectedSize, selectedColor, selectedModel, quantity, customTextPreset, imageContainerRef]);
+  }, [selectedSize, selectedColor, selectedModelTypeId, quantity, customTextPreset, imageContainerRef, selectedProductPrice, productTypes]);
 
   const handleAddToCart = useCallback(async () => {
     setLoadingState({ isLoading: true, step: 'generating_image', error: null });
@@ -335,8 +504,6 @@ function StayFamousContent({ description }: { description: string }) {
         setLoadingState(prev => ({ ...prev, step: 'adding_to_cart' }));
         addToCart(cartItem);
         setLoadingState({ isLoading: false, step: 'idle', error: null });
-        setIsExpanded(false);
-        setExpandedBy(null);
       }
     } catch (error) {
       setLoadingState(prev => ({
@@ -347,10 +514,17 @@ function StayFamousContent({ description }: { description: string }) {
     }
   }, [createCartItem, addToCart]);
 
+  const onCartClick = useCallback(async () => {
+    handleAddToCart();
+  }, [handleAddToCart]);
+
   const onBuyNow = useCallback(async () => {
-    if (!isExpanded) {
-      setIsExpanded(true);
-      setExpandedBy('buy');
+    if (!selectedSize || !selectedColor) {
+      setLoadingState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: "Please select both size and color before proceeding"
+      }));
       return;
     }
 
@@ -372,7 +546,7 @@ function StayFamousContent({ description }: { description: string }) {
           description: currentText,
           textPreset: customTextPreset,
           imageContainerRef: imageContainerRef.current!,
-          modelId: selectedModel.id
+          modelId: selectedModelTypeId!
         });
 
         if (!result.success) {
@@ -382,8 +556,6 @@ function StayFamousContent({ description }: { description: string }) {
 
       setLoadingState(prev => ({ ...prev, step: 'adding_to_cart' }));
       addToCart(cartItem);
-      setIsExpanded(false);
-      setExpandedBy(null);
 
       setLoadingState(prev => ({ ...prev, step: 'redirecting' }));
       router.push('/shop/checkout');
@@ -395,12 +567,7 @@ function StayFamousContent({ description }: { description: string }) {
         error: "There was an error processing your request. Please try again."
       }));
     }
-  }, [isExpanded, createCartItem, customTextPreset, selectedModel.id, imageContainerRef, addToCart, router]);
-
-  const onCartClick = useCallback(() => {
-    setIsExpanded(!isExpanded);
-    setExpandedBy(isExpanded ? null : 'cart');
-  }, [isExpanded]);
+  }, [createCartItem, customTextPreset, selectedModelTypeId, imageContainerRef, addToCart, router, selectedSize, selectedColor]);
 
   const handleQuantityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setQuantity(Math.max(1, parseInt(e.target.value)));
@@ -511,15 +678,6 @@ function StayFamousContent({ description }: { description: string }) {
       setBottomFontSize(fontSize);
       setShouldWrapBottom(shouldWrap);
       setFormattedBottomText(formattedText);
-      
-      console.log('Font size calculation:', {
-        text: customLine,
-        fontSize,
-        shouldWrap,
-        formattedText,
-        width: measureTextWidth(customLine, fontSize),
-        maxWidth: maxBottomWidth
-      });
     }
   }, [customLine, calculateMaxFontSize, measureTextWidth]);
 
@@ -528,112 +686,154 @@ function StayFamousContent({ description }: { description: string }) {
       <CustomizationContainer>
         <PreviewSection>
           <ImageContainer ref={imageContainerRef}>
-            <Image
-              src={selectedModel.imagePath}
-              alt="T-shirt preview"
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              style={{ objectFit: "contain", width: "100%", height: "100%" }}
-            />
-            <TextOverlay 
-              $position={customTextPreset.topLine}
-              $verticalOffset={selectedModel.verticalOffset}
-              $isMobile={isMobile}
-              $debug={debugMode}
-              data-width={measureTextWidth(customTextPreset.topLine.text, customTextPreset.topLine.fontSize)}
-              data-font-size={customTextPreset.topLine.fontSize}
-            >
-              {customTextPreset.topLine.text}
-            </TextOverlay>
-            <TextOverlay 
-              $position={customTextPreset.bottomLine}
-              $verticalOffset={selectedModel.verticalOffset}
-              $isMobile={isMobile}
-              $debug={debugMode}
-              $allowWrap={shouldWrapBottom}
-              data-width={measureTextWidth(customTextPreset.bottomLine.text.split('\n')[0], customTextPreset.bottomLine.fontSize)}
-              data-font-size={customTextPreset.bottomLine.fontSize}
-            >
-              {customTextPreset.bottomLine.text}
-            </TextOverlay>
+            {selectedModelPath ? (
+              <>
+                <Image
+                  src={selectedModelPath}
+                  alt="Product preview"
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  style={{ objectFit: "contain" }}
+                />
+                <TextOverlay 
+                  $position={customTextPreset.topLine}
+                  $verticalOffset={selectedVerticalOffset}
+                  $isMobile={isMobile}
+                  $debug={debugMode}
+                  data-width={measureTextWidth(customTextPreset.topLine.text, customTextPreset.topLine.fontSize)}
+                  data-font-size={customTextPreset.topLine.fontSize}
+                  data-text-overlay="top"
+                >
+                  {customTextPreset.topLine.text}
+                </TextOverlay>
+                <TextOverlay 
+                  $position={customTextPreset.bottomLine}
+                  $verticalOffset={selectedVerticalOffset}
+                  $isMobile={isMobile}
+                  $debug={debugMode}
+                  $allowWrap={shouldWrapBottom}
+                  data-width={measureTextWidth(customTextPreset.bottomLine.text.split('\n')[0], customTextPreset.bottomLine.fontSize)}
+                  data-font-size={customTextPreset.bottomLine.fontSize}
+                  data-text-overlay="bottom"
+                >
+                  {customTextPreset.bottomLine.text}
+                </TextOverlay>
+              </>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-white/10 rounded-lg">
+                <div className="animate-pulse text-white/40">Select a product type to preview</div>
+              </div>
+            )}
           </ImageContainer>
           
           {/* Debug Controls */}
-          <div className="w-full max-w-[600px] p-4 bg-white/10 rounded-md mt-4">
-            <div className="flex items-center justify-between mb-4">
-              <Label className="text-sm text-white">Debug Mode</Label>
-              <Button
-                variant="outline"
-                className="bg-white/10 border-white/20 hover:bg-white/20"
-                onClick={() => setDebugMode(!debugMode)}
-              >
-                {debugMode ? 'Hide Debug Info' : 'Show Debug Info'}
-              </Button>
-            </div>
-            
-            {debugMode && (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm text-white mb-2">Top Text Font Size: {topFontSize}px</Label>
-                  <input
-                    type="range"
-                    min="12"
-                    max="40"
-                    value={topFontSize}
-                    onChange={(e) => setTopFontSize(Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm text-white mb-2">Bottom Text Font Size: {bottomFontSize}px</Label>
-                  <input
-                    type="range"
-                    min="12"
-                    max="40"
-                    value={bottomFontSize}
-                    onChange={(e) => setBottomFontSize(Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Removed debug controls section */}
         </PreviewSection>
 
         <CustomizationSection>
-          <ModelSelector
-            selectedModel={selectedModel}
-            onSelectModel={setSelectedModel}
-          />
-          
-          <div className="mt-6">
+          {/* Product Type Selection */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              {productTypes.map((type) => (
+                <Button
+                  key={type.id}
+                  onClick={() => setSelectedProductType(type.id)}
+                  variant="outline"
+                  className={`${
+                    selectedProductType === type.id
+                      ? 'bg-white text-black'
+                      : 'bg-black/40 text-white hover:bg-white/10'
+                  }`}
+                >
+                  {type.name}
+                </Button>
+              ))}
+            </div>
+
+            {/* Model Selection */}
+            <ModelSelector
+              selectedProductType={selectedProductType}
+              selectedModel={selectedModelPath}
+              onModelSelect={handleModelSelect}
+              productTypes={productTypes}
+            />
+          </div>
+
+          {/* Product Options */}
+          <ProductOptions>
             <StayFamousPreset 
               customText={customLine}
-              originalDescription={originalDescription}
               onTextChange={handleTextChange}
+              textPreset={textPreset}
+              setTextPreset={setTextPreset}
             />
-            
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-2xl font-bold">$38.00</p>
-              <div className="flex items-center gap-2">
+
+            <div className="space-y-4 mt-4">
+              {/* Quantity Row */}
+              <div className="flex items-center gap-4">
+                <Label className="text-sm text-white whitespace-nowrap">Quantity:</Label>
+                <input 
+                  type="number"
+                  value={quantity}
+                  onChange={handleQuantityChange}
+                  className="w-16 text-center border border-white/20 rounded-md p-1 bg-black/40 text-white text-sm"
+                  min="1"
+                />
+              </div>
+
+              {/* Size Row */}
+              <div className="flex items-center gap-4">
+                <Label className="text-sm text-white whitespace-nowrap">Size:</Label>
+                <div className="flex gap-1">
+                  {sizeButtons}
+                </div>
+              </div>
+
+              {/* Color Selection */}
+              <div className="flex items-center gap-4">
+                <Label className="text-sm text-white whitespace-nowrap">Color:</Label>
+                <div className="flex gap-1">
+                  <ColorButton
+                    color="Black"
+                    isSelected={selectedColor === "Black"}
+                    onSelect={handleColorSelect}
+                  />
+                  <ColorButton
+                    color="White"
+                    isSelected={selectedColor === "White"}
+                    onSelect={handleColorSelect}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 mt-4">
+              <p className="text-2xl font-bold">${selectedProductPrice.toFixed(2)}</p>
+              {loadingState.error && (
+                <ErrorMessage>{loadingState.error}</ErrorMessage>
+              )}
+              <div className="flex items-center justify-end gap-2 w-full">
                 <Button
                   variant="outline"
-                  className="bg-white/10 border-white/20 hover:bg-white/20 flex items-center gap-2"
+                  className="bg-white/10 border-white/20 hover:bg-white/20 flex items-center gap-2 whitespace-nowrap"
                   onClick={onCartClick}
+                  disabled={loadingState.isLoading}
                 >
                   <ShoppingCart className="h-4 w-4" />
-                  Add to Cart
+                  <span className="hidden sm:inline">Add to Cart</span>
+                  <span className="sm:hidden">Add to Cart</span>
                 </Button>
                 <Button
                   variant="outline"
-                  className="bg-white text-black hover:bg-white/90"
+                  className="bg-white text-black hover:bg-white/90 whitespace-nowrap min-w-[90px]"
                   onClick={onBuyNow}
                   disabled={loadingState.isLoading}
                 >
                   {loadingState.isLoading ? (
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>{getLoadingMessage(loadingState.step)}</span>
+                      <span className="truncate">{getLoadingMessage(loadingState.step, isMobile)}</span>
                     </div>
                   ) : (
                     'Buy Now'
@@ -641,71 +841,9 @@ function StayFamousContent({ description }: { description: string }) {
                 </Button>
               </div>
             </div>
-
-            {isExpanded && (
-              <ProductOptions>
-                <div className="space-y-4">
-                  {/* Quantity Row */}
-                  <div className="flex items-center gap-4">
-                    <Label className="text-sm text-white whitespace-nowrap">Quantity:</Label>
-                    <input 
-                      type="number"
-                      value={quantity}
-                      onChange={handleQuantityChange}
-                      className="w-16 text-center border border-white/20 rounded-md p-1 bg-black/40 text-white text-sm"
-                      min="1"
-                    />
-                  </div>
-
-                  {/* Size Row */}
-                  <div className="flex items-center gap-4">
-                    <Label className="text-sm text-white whitespace-nowrap">Size:</Label>
-                    <div className="flex gap-1">
-                      {sizeButtons}
-                    </div>
-                  </div>
-
-                  {/* Color Selection */}
-                  <div className="flex items-center gap-4">
-                    <Label className="text-sm text-white whitespace-nowrap">Color:</Label>
-                    <div className="flex gap-1">
-                      <ColorButton
-                        color="Black"
-                        isSelected={selectedColor === "Black"}
-                        onSelect={handleColorSelect}
-                      />
-                      <ColorButton
-                        color="White"
-                        isSelected={selectedColor === "White"}
-                        onSelect={handleColorSelect}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {loadingState.error && (
-                  <ErrorMessage>{loadingState.error}</ErrorMessage>
-                )}
-
-                <Button
-                  className="w-full bg-white text-black hover:bg-white/90 mt-4"
-                  onClick={expandedBy === 'cart' ? handleAddToCart : onBuyNow}
-                  disabled={loadingState.isLoading}
-                >
-                  {loadingState.isLoading ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>{getLoadingMessage(loadingState.step)}</span>
-                    </div>
-                  ) : (
-                    expandedBy === 'cart' ? 'Add to Cart' : 'Buy Now'
-                  )}
-                </Button>
-              </ProductOptions>
-            )}
-          </div>
+          </ProductOptions>
         </CustomizationSection>
       </CustomizationContainer>
     </div>
-  )
+  );
 }

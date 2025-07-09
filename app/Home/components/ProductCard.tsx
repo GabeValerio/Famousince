@@ -6,18 +6,41 @@ import Image from "next/image"
 import { ShoppingCart } from "lucide-react"
 import type { Product } from "../data/products"
 import { MostFamousLabel } from "./MostFamousLabel"
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { useCart } from "@/lib/CartContext"
 import { useRouter } from "next/navigation"
 import React from "react"
 import Link from "next/link"
+import { supabase } from "@/lib/supabaseClient"
 
-interface ProductCardProps {
-  product: Product
-  isMostFamous?: boolean
+interface ProductVariant {
+  id: string;
+  size: string;
+  color: string;
+  price: number;
+  stock_quantity: number;
 }
 
-const SIZES = ["S", "M", "L", "XL", "2XL"] as const;
+interface ProductWithVariants {
+  id: string;
+  name: string;
+  description?: string;
+  base_price: number;
+  application: string;
+  front_image_url?: string;
+  back_image_url?: string;
+  product_type_id: string;
+  variants: ProductVariant[];
+  image?: string;
+  famousLine?: string;
+}
+
+interface ProductCardProps {
+  product: ProductWithVariants;
+  onAddToCart?: (product: ProductWithVariants) => void;
+  showAddToCart?: boolean;
+  isMostFamous?: boolean;
+}
 
 interface SizeButtonProps {
   size: string;
@@ -30,6 +53,8 @@ interface ColorButtonProps {
   isSelected: boolean;
   onSelect: (color: string) => void;
 }
+
+const PLACEHOLDER_IMAGE = "/images/placeholder.jpg";
 
 const SizeButton = React.memo(({ size, isSelected, onSelect }: SizeButtonProps) => (
   <button
@@ -69,52 +94,53 @@ const ColorButton = React.memo(({ color, isSelected, onSelect }: ColorButtonProp
 
 ColorButton.displayName = 'ColorButton';
 
-export function ProductCard({ product, isMostFamous }: ProductCardProps) {
+export const ProductCard = ({ product, onAddToCart, showAddToCart = true, isMostFamous }: ProductCardProps) => {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedBy, setExpandedBy] = useState<'cart' | 'buy' | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedColor, setSelectedColor] = useState("Black"); // Default to Black
   const [quantity, setQuantity] = useState(1);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [error, setError] = useState("");
   const { addToCart } = useCart();
 
-  const createCartItem = useCallback(() => {
-    if (!selectedSize || !selectedColor) {
-      setErrorMessage("Please select both size and color");
-      return null;
+  // Get unique sizes from variants
+  const availableSizes = useMemo(() => {
+    const sizes = new Set(product.variants.map(v => v.size));
+    return Array.from(sizes);
+  }, [product.variants]);
+
+  // Get unique colors from variants
+  const availableColors = useMemo(() => {
+    const colors = new Set(product.variants.map(v => v.color));
+    return Array.from(colors);
+  }, [product.variants]);
+
+  const handleAddToCart = () => {
+    if (!selectedSize) {
+      setError("Please select a size");
+      return;
     }
 
-    const variant = product.variants.find(v => v.size === selectedSize);
+    const variant = product.variants.find(
+      v => v.size === selectedSize && v.color === selectedColor
+    );
 
     if (!variant) {
-      setErrorMessage("Selected size is not available");
-      return null;
+      setError("Selected variant not available");
+      return;
     }
 
-    return {
-      id: `${product.id}-${selectedSize}-${selectedColor}-${encodeURIComponent(product.description || '')}`,
-      product_id: product.id,
-      variant_id: variant.id,
-      name: product.name,
-      description: product.description,
-      price: variant.price,
-      quantity: quantity,
-      image: product.image,
-      size: selectedSize,
-      color: selectedColor
-    };
-  }, [product, selectedSize, selectedColor, quantity]);
-
-  const handleAddToCart = useCallback(() => {
-    const cartItem = createCartItem();
-    if (cartItem) {
-      addToCart(cartItem);
-      setErrorMessage("");
-      setIsExpanded(false);
-      setExpandedBy(null);
+    if (variant.stock_quantity <= 0) {
+      setError("Selected variant is out of stock");
+      return;
     }
-  }, [createCartItem, addToCart]);
+
+    addToCart(product, variant, quantity);
+    setError("");
+    setIsExpanded(false);
+    setExpandedBy(null);
+  };
 
   const onBuyNow = useCallback(() => {
     if (!isExpanded) {
@@ -123,15 +149,31 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
       return;
     }
 
-    const cartItem = createCartItem();
-    if (cartItem) {
-      addToCart(cartItem);
-      setErrorMessage("");
-      setIsExpanded(false);
-      setExpandedBy(null);
-      router.push('/shop/checkout');
+    if (!selectedSize) {
+      setError("Please select a size");
+      return;
     }
-  }, [isExpanded, createCartItem, addToCart, router]);
+
+    const variant = product.variants.find(
+      v => v.size === selectedSize && v.color === selectedColor
+    );
+
+    if (!variant) {
+      setError("Selected variant not available");
+      return;
+    }
+
+    if (variant.stock_quantity <= 0) {
+      setError("Selected variant is out of stock");
+      return;
+    }
+
+    addToCart(product, variant, quantity);
+    setError("");
+    setIsExpanded(false);
+    setExpandedBy(null);
+    router.push('/shop/checkout');
+  }, [isExpanded, selectedSize, selectedColor, product, quantity, addToCart, router]);
 
   const onCartClick = useCallback(() => {
     setIsExpanded(!isExpanded);
@@ -152,7 +194,7 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
 
   // Memoize size buttons
   const sizeButtons = useMemo(() => (
-    SIZES.map(size => (
+    availableSizes.map((size) => (
       <SizeButton
         key={size}
         size={size}
@@ -160,7 +202,19 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
         onSelect={handleSizeSelect}
       />
     ))
-  ), [selectedSize, handleSizeSelect]);
+  ), [selectedSize, handleSizeSelect, availableSizes]);
+
+  // Memoize color buttons
+  const colorButtons = useMemo(() => (
+    availableColors.map((color) => (
+      <ColorButton
+        key={color}
+        color={color}
+        isSelected={selectedColor === color}
+        onSelect={handleColorSelect}
+      />
+    ))
+  ), [selectedColor, handleColorSelect, availableColors]);
 
   return (
     <div className="border border-white/30 rounded-lg p-4 md:p-6 hover:border-white/50 transition-colors relative bg-black/40 backdrop-blur-sm">
@@ -174,7 +228,7 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
       {/* Product Image */}
       <div className="relative aspect-square mb-4 overflow-hidden rounded-lg">
         <Image
-          src={product.image}
+          src={product.front_image_url || product.back_image_url || product.image || PLACEHOLDER_IMAGE}
           alt={product.name}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
@@ -196,7 +250,7 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
 
       {/* Product Details */}
       <div className="flex items-center space-x-4">
-        <p className="text-lg md:text-2xl font-bold">${product.price.toFixed(2)}</p>
+        <p className="text-lg md:text-2xl font-bold">${product.base_price.toFixed(2)}</p>
         
         <div className="flex items-center gap-2 ml-auto">
           <Button
@@ -209,7 +263,7 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
           </Button>
           <Button
             variant="outline"
-            className="bg-white text-black hover:bg-white/90 text-sm md:text-base whitespace-nowrap"
+            className="bg-white/10 border-white/20 hover:bg-white/20"
             onClick={onBuyNow}
           >
             Buy Now
@@ -217,65 +271,51 @@ export function ProductCard({ product, isMostFamous }: ProductCardProps) {
         </div>
       </div>
 
-      {/* Expanded Options */}
+      {/* Expanded Section */}
       {isExpanded && (
-        <div className="mt-4 border-t border-white/20 pt-4 space-y-4">
-          {/* Quantity and Size Selection */}
-          <div className="space-y-3">
-            {/* Quantity Row */}
-            <div className="flex items-center gap-4">
-              <Label className="text-sm text-white whitespace-nowrap">Quantity:</Label>
-              <input 
-                type="number"
-                value={quantity}
-                onChange={handleQuantityChange}
-                className="w-16 text-center border border-white/20 rounded-md p-1 bg-black/40 text-white text-sm"
-                min="1"
-              />
-            </div>
-
-            {/* Size and Color Row */}
-            <div className="flex items-center gap-4">
-              <Label className="text-sm text-white whitespace-nowrap">Size:</Label>
-              <div className="flex gap-1">
-                {sizeButtons}
-              </div>
-            </div>
-
-            {/* Color Selection */}
-            <div className="flex items-center gap-4">
-              <Label className="text-sm text-white whitespace-nowrap">Color:</Label>
-              <div className="flex gap-1">
-                <ColorButton
-                  color="Black"
-                  isSelected={selectedColor === "Black"}
-                  onSelect={handleColorSelect}
-                />
-                <ColorButton
-                  color="White"
-                  isSelected={selectedColor === "White"}
-                  onSelect={handleColorSelect}
-                />
-              </div>
+        <div className="mt-4 space-y-4">
+          {/* Size Selection */}
+          <div>
+            <Label className="text-sm text-white/60 mb-2">Size</Label>
+            <div className="flex flex-wrap gap-2">
+              {sizeButtons}
             </div>
           </div>
 
-          {/* Error Message */}
-          {errorMessage && (
-            <div className="text-red-500 text-sm">
-              {errorMessage}
+          {/* Color Selection */}
+          <div>
+            <Label className="text-sm text-white/60 mb-2">Color</Label>
+            <div className="flex flex-wrap gap-2">
+              {colorButtons}
             </div>
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <Label className="text-sm text-white/60 mb-2">Quantity</Label>
+            <input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={handleQuantityChange}
+              className="w-20 px-2 py-1 text-sm bg-black/40 border border-white/20 rounded-md text-white"
+            />
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <p className="text-red-500 text-sm">{error}</p>
           )}
 
           {/* Action Button */}
           <Button
             className="w-full bg-white text-black hover:bg-white/90"
-            onClick={expandedBy === 'cart' ? handleAddToCart : onBuyNow}
+            onClick={expandedBy === 'buy' ? onBuyNow : handleAddToCart}
           >
-            {expandedBy === 'cart' ? 'Add to Cart' : 'Buy Now'}
+            {expandedBy === 'buy' ? 'Buy Now' : 'Add to Cart'}
           </Button>
         </div>
       )}
     </div>
-  )
-} 
+  );
+}; 

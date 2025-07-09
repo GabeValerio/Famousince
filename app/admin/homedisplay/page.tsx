@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import ProductManagement from "./components/ProductManagement";
+import HomePageDisplay from "./components/HomePageDisplay";
 
-export default function StorePage() {
+export default function HomeDisplayPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -12,20 +12,20 @@ export default function StorePage() {
             className="text-white text-2xl md:text-3xl"
             style={{ fontFamily: 'Chalkduster, fantasy' }}
           >
-            Product Management
+            Homepage Display
           </h1>
         </div>
 
         <button
+          onClick={() => window.dispatchEvent(new CustomEvent('saveLayout'))}
           className="bg-white text-black px-4 py-2 rounded hover:bg-white/90 text-sm font-semibold transition-colors"
-          onClick={() => window.dispatchEvent(new CustomEvent('openAddProduct'))}
           style={{ fontFamily: 'Chalkduster, fantasy' }}
         >
-          Add Product
+          Save Layout
         </button>
       </div>
 
-      <ProductManagement />
+      <HomePageDisplay />
     </div>
   );
-}
+} 

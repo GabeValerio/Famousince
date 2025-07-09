@@ -16,7 +16,7 @@ export async function generateAndUploadImage(
   imageContainerRef: HTMLDivElement,
   textPreset: StayFamousText,
   modelId: string
-): Promise<string | null> {
+): Promise<string | undefined> {
   try {
     // Temporarily make the container visible for image generation
     const originalDisplay = imageContainerRef.style.display;
@@ -80,6 +80,6 @@ export async function generateAndUploadImage(
     }
   } catch (error) {
     console.error('Error in generateAndUploadImage:', error instanceof Error ? error.message : 'Unknown error');
-    return null;
+    return undefined;
   }
 } 

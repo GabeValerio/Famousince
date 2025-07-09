@@ -6,7 +6,22 @@ import { FaMinus, FaPlus, FaTimes } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import Image from 'next/image';
 
-const CartDrawer = ({ isOpen, onClose }) => {
+interface CartDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+  size?: string;
+  color?: string;
+}
+
+const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
   const [isBreakdownMode, setIsBreakdownMode] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -21,13 +36,13 @@ const CartDrawer = ({ isOpen, onClose }) => {
   }, []);
   
   const { cart, removeFromCart, updateQuantity, totalAmount } = useCart();
-  const totalQuantity = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const totalQuantity = cart.reduce((acc: number, item: CartItem) => acc + item.quantity, 0);
 
-  const handleQuantityChange = (id, value) => {
+  const handleQuantityChange = (id: string, value: number) => {
     updateQuantity(id, value);
   };
 
-  const handleRemoveItem = (id) => {
+  const handleRemoveItem = (id: string) => {
     removeFromCart(id);
   };
 
@@ -63,7 +78,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
           Your Shopping Cart
         </h2>
         <div className="space-y-4 overflow-y-auto max-h-[calc(100vh-250px)]">
-          {cart.map((item) => (
+          {cart.map((item: CartItem) => (
             <div key={item.id} className="grid grid-cols-[80px_1fr_auto] items-center gap-4 text-sm border border-white/20 rounded-lg p-3">
               <Image
                 src={item.image || "/placeholder.svg"}

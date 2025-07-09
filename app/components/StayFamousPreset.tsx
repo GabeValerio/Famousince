@@ -152,29 +152,35 @@ const calculateDynamicFontSize = (text: string, maxWidth: number, startingFontSi
 
 interface StayFamousPresetProps {
   customText: string;
-  originalDescription: string;
   onTextChange?: (text: string) => void;
+  textPreset: StayFamousText;
+  setTextPreset: React.Dispatch<React.SetStateAction<StayFamousText>>;
 }
 
-export default function StayFamousPreset({ customText, originalDescription, onTextChange }: StayFamousPresetProps) {
+export default function StayFamousPreset({ 
+  customText, 
+  onTextChange,
+  textPreset,
+  setTextPreset 
+}: StayFamousPresetProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(originalDescription);
-
-  const currentPreset: StayFamousText = {
-    ...DEFAULT_PRESET,
-    bottomLine: {
-      ...DEFAULT_PRESET.bottomLine,
-      text: customText,
-    },
-  };
+  const [editText, setEditText] = useState(customText);
 
   const handleSave = () => {
-    onTextChange?.(editText.toUpperCase());
+    const newText = editText.toUpperCase();
+    onTextChange?.(newText);
+    setTextPreset(prev => ({
+      ...prev,
+      bottomLine: {
+        ...prev.bottomLine,
+        text: newText,
+      },
+    }));
     setIsEditing(false);
   };
 
   const handleEdit = () => {
-    setEditText(originalDescription);
+    setEditText(customText);
     setIsEditing(true);
   };
 
@@ -206,9 +212,7 @@ export default function StayFamousPreset({ customText, originalDescription, onTe
             autoFocus
           />
         ) : (
-          <BottomText style={{ fontSize: `${currentPreset.bottomLine.fontSize}px` }}>
-            {currentPreset.bottomLine.text}
-          </BottomText>
+          <BottomText>{customText}</BottomText>
         )}
       </PresetDescription>
     </PresetContainer>

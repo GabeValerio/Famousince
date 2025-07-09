@@ -39,65 +39,59 @@ const ModelName = styled.div`
   padding: 0 4px;
 `;
 
-export interface Model {
+export interface ProductType {
   id: string;
   name: string;
-  imagePath: string;
-  verticalOffset: number;
+  active: boolean;
+  images?: ProductTypeImage[];
 }
 
-const MODELS: Model[] = [
-  {
-    id: 'model1-short',
-    name: 'Short Sleeve',
-    imagePath: '/MockUp/Model1_ShortSleeve.JPG',
-    verticalOffset: 0,
-  },
-  {
-    id: 'model1-hoodie',
-    name: 'Hoodie Style 1',
-    imagePath: '/MockUp/Model1_Hoodie.JPG',
-    verticalOffset: 0,
-  },
-  {
-    id: 'model2-hoodie',
-    name: 'Hoodie Style 2',
-    imagePath: '/MockUp/Model2_Hoodie.JPG',
-    verticalOffset: 3,
-  },
-];
+export interface ProductTypeImage {
+  id: string;
+  product_type_id: string;
+  image_path: string;
+  vertical_offset: number;
+}
 
 interface ModelSelectorProps {
-  selectedModel: Model;
-  onSelectModel: (model: Model) => void;
+  selectedProductType: string;
+  selectedModel: string | null;
+  onModelSelect: (modelPath: string, verticalOffset: number, productTypeId: string) => void;
+  productTypes: ProductType[];
 }
 
-export default function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorProps) {
+export default function ModelSelector({ 
+  selectedProductType,
+  selectedModel,
+  onModelSelect,
+  productTypes
+}: ModelSelectorProps) {
+  // Find the selected product type
+  const selectedType = productTypes.find(type => type.id === selectedProductType);
+  const images = selectedType?.images || [];
+
   return (
     <div>
       <h3 style={{ marginBottom: '12px', fontWeight: 600 }}>Select Model</h3>
       <ModelGrid>
-        {MODELS.map((model) => (
+        {images.map((image) => (
           <ModelCard
-            key={model.id}
-            $isSelected={selectedModel.id === model.id}
-            onClick={() => onSelectModel(model)}
+            key={image.id}
+            $isSelected={selectedModel === image.image_path}
+            onClick={() => onModelSelect(image.image_path, image.vertical_offset, image.product_type_id)}
           >
             <ImageWrapper>
               <Image
-                src={model.imagePath}
-                alt={model.name}
+                src={image.image_path}
+                alt={`Model ${image.id}`}
                 fill
                 sizes="(max-width: 768px) 33vw, 20vw"
                 style={{ objectFit: 'contain', width: '100%', height: '100%' }}
               />
             </ImageWrapper>
-            <ModelName>{model.name}</ModelName>
           </ModelCard>
         ))}
       </ModelGrid>
     </div>
   );
-}
-
-export { MODELS }; 
+} 

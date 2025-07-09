@@ -15,12 +15,13 @@ interface DatabaseProduct {
   back_image_url?: string;
   base_price: number;
   application: string;
-  garment: string;
+  product_type_id: string;
   variants?: Array<{
     id: string;
     size: string;
-    color?: string;
-    price?: number;
+    color: string;
+    price: number;
+    stock_quantity: number;
   }>;
 }
 
@@ -29,25 +30,24 @@ interface ProductVariant {
   size: string;
   color: string;
   price: number;
+  stock_quantity: number;
 }
 
 interface DisplayProduct {
   id: string;
-  product_id: string;
-  variant_id: string;
   name: string;
   description: string;
-  price: number;
-  quantity: number;
-  image: string;
-  size: string;
-  color: string;
+  base_price: number;
+  application: string;
+  front_image_url?: string;
+  back_image_url?: string;
+  product_type_id: string;
+  variants: ProductVariant[];
   famousLine: string;
   customization: {
     topLine: string;
     bottomLine: string;
   };
-  variants: ProductVariant[];
 }
 
 interface HomepageDisplay {
@@ -71,7 +71,8 @@ function ShirtProductsGrid() {
               id,
               size,
               color,
-              price
+              price,
+              stock_quantity
             )
           `);
 
@@ -93,31 +94,23 @@ function ShirtProductsGrid() {
 
         // Transform all products to match DisplayProduct interface
         const transformedAllProducts: DisplayProduct[] = (allProducts as DatabaseProduct[])?.map(product => {
-          const defaultVariant = (product.variants && product.variants[0]) || { size: 'M', color: 'Black', price: product.base_price };
           const description = product.description || "BEING UNIQUE";
           
           return {
-            id: `${product.id}-${defaultVariant.size}-${defaultVariant.color || 'Black'}-${encodeURIComponent(description)}`,
-            product_id: product.id,
-            variant_id: `${defaultVariant.size}-${defaultVariant.color || 'Black'}`,
+            id: product.id,
             name: `Famous Since ${description} T-Shirt`,
             description: description,
-            price: product.base_price,
-            quantity: 1,
-            image: product.front_image_url || "",
-            size: defaultVariant.size,
-            color: defaultVariant.color || 'Black',
+            base_price: product.base_price,
+            application: product.application,
+            front_image_url: product.front_image_url,
+            back_image_url: product.back_image_url,
+            product_type_id: product.product_type_id,
+            variants: product.variants || [],
             famousLine: description,
             customization: {
               topLine: "FAMOUS SINCE",
               bottomLine: description
-            },
-            variants: (product.variants || []).map(v => ({
-              id: v.id,
-              size: v.size,
-              color: v.color || "Black",
-              price: v.price || product.base_price
-            }))
+            }
           };
         });
 
@@ -128,38 +121,40 @@ function ShirtProductsGrid() {
         // First pass: Place specifically assigned products
         normalizedDisplayData.forEach((display, index) => {
           if (display.product_id) {
-            const product = transformedAllProducts.find(p => p.product_id === display.product_id);
+            const product = transformedAllProducts.find(p => p.id === display.product_id);
             if (product) {
               displayProducts[index] = product;
-              usedProductIds.add(product.product_id);
+              usedProductIds.add(product.id);
             }
           }
         });
 
-        // Second pass: Fill random positions
-        normalizedDisplayData.forEach((display, index) => {
-          if (!displayProducts[index]) {
+        // Second pass: Fill remaining positions with random products
+        for (let i = 0; i < 4; i++) {
+          if (!displayProducts[i]) {
             // Get available products (not yet used)
-            const availableProducts = transformedAllProducts.filter(p => !usedProductIds.has(p.product_id));
+            const availableProducts = transformedAllProducts.filter(p => !usedProductIds.has(p.id));
             
             if (availableProducts.length > 0) {
+              // If we have unused products, use one of those
               const randomIndex = Math.floor(Math.random() * availableProducts.length);
               const selectedProduct = availableProducts[randomIndex];
-              displayProducts[index] = selectedProduct;
-              usedProductIds.add(selectedProduct.product_id);
+              displayProducts[i] = selectedProduct;
+              usedProductIds.add(selectedProduct.id);
             } else if (transformedAllProducts.length > 0) {
-              // If no more unique products available, reuse from all products
-              const randomProduct = transformedAllProducts[Math.floor(Math.random() * transformedAllProducts.length)];
-              displayProducts[index] = randomProduct;
+              // If we need to reuse products, try to avoid using the most recently used ones
+              const recentlyUsed = new Set(
+                displayProducts
+                  .slice(Math.max(0, i - 2), i)
+                  .filter(Boolean)
+                  .map(p => p.id)
+              );
+              
+              const leastRecentlyUsed = transformedAllProducts.filter(p => !recentlyUsed.has(p.id));
+              const productPool = leastRecentlyUsed.length > 0 ? leastRecentlyUsed : transformedAllProducts;
+              const randomProduct = productPool[Math.floor(Math.random() * productPool.length)];
+              displayProducts[i] = randomProduct;
             }
-          }
-        });
-
-        // Ensure we have exactly 4 products, filling any remaining slots with random products
-        for (let i = 0; i < 4; i++) {
-          if (!displayProducts[i] && transformedAllProducts.length > 0) {
-            const randomProduct = transformedAllProducts[Math.floor(Math.random() * transformedAllProducts.length)];
-            displayProducts[i] = randomProduct;
           }
         }
 
@@ -188,9 +183,23 @@ function ShirtProductsGrid() {
     );
   }
 
+  // Add check for empty products
+  if (!products || products.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Chalkduster, fantasy' }}>
+          NO PRODUCTS YET
+        </h2>
+        <p className="text-white/60">
+          Check back soon for new products!
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 max-w-7xl mx-auto px-4">
-      {products.map((product, index) => (
+      {products.filter(product => product !== null).map((product, index) => (
         <ProductCard
           key={product.id}
           product={product}
@@ -252,18 +261,18 @@ export default function Component() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
         {/* Main content area */}
-        <div className="text-center space-y-4 mb-16">
+        <div className="text-center space-y-8 mb-16 w-full">
           <h1 
-            className="text-4xl sm:text-6xl md:text-7xl lg:text-9xl font-bold tracking-tight whitespace-nowrap" 
+            className="text-4xl sm:text-6xl md:text-7xl lg:text-9xl font-bold tracking-tight whitespace-normal sm:whitespace-nowrap" 
             style={{ fontFamily: 'Chalkduster' }}
           >
             FAMOUS SINCE
           </h1>
 
           {/* Input section directly underneath */}
-          <div className="max-w-md mx-auto space-y-4">
+          <div className="w-full max-w-md mx-auto space-y-4 px-2 sm:px-0">
             <Input
               type="text"
               placeholder="ENTER WHAT MAKES YOU FAMOUS"
