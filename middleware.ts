@@ -88,7 +88,7 @@ export async function middleware(request: NextRequest) {
 
     // If we're on /admin exactly and authenticated, redirect to overview
     if (pathname === '/admin' && token) {
-      return NextResponse.redirect(new URL('/admin/overview', request.url));
+      return NextResponse.redirect(new URL('/admin/store', request.url));
     }
   }
 

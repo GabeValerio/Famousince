@@ -127,7 +127,6 @@ function LoginForm() {
     }
 
     try {
-      console.log("Attempting to sign in...");
       const result = await signIn('credentials', {
         redirect: false,
         email,
@@ -136,7 +135,6 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        console.error("Error details:", result);
         if (result.error === "CredentialsSignin") {
           alert("Invalid email or password. Please try again.");
         } else {
@@ -144,7 +142,6 @@ function LoginForm() {
         }
       }
     } catch (error) {
-      console.error("Sign in error:", error);
       alert("An unexpected error occurred. Please try again.");
     }
   };

@@ -118,7 +118,7 @@ export default function HostingPage() {
             </div>
             <div className="bg-white/5 rounded-lg border border-white/10 p-4">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-white">$29</span>
+                <span className="text-3xl font-bold text-white">$25</span>
                 <span className="text-white/60">/month</span>
               </div>
               <p className="mt-2 text-white/80">
