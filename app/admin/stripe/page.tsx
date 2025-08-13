@@ -34,6 +34,7 @@ export default function StripeConnectPage() {
   const [isOwnerAccount, setIsOwnerAccount] = useState(false);
   const [updatingProducts, setUpdatingProducts] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState<ConnectFormData>({
     email: '',
     first_name: '',
@@ -222,40 +223,11 @@ export default function StripeConnectPage() {
         throw new Error(data.error || 'Failed to clear owner account');
       }
 
-      // Clear product types directly with Supabase
-      const { error: productTypesError } = await supabase
-        .from('product_types')
-        .update({ stripe_account_id: null });
-
-      if (productTypesError) {
-        throw new Error('Failed to clear product types');
-      }
-
-      // Verify the updates
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id, stripe_account_id')
-        .limit(1);
-        
-      console.log('Products verification:', { products, error: productsError });
-
-      if (productsError) {
-        throw new Error('Failed to verify product update');
-      }
-
-      const { data: productTypes, error: typesVerifyError } = await supabase
-        .from('product_types')
-        .select('id, stripe_account_id')
-        .limit(1);
-
-      console.log('Product types verification:', { productTypes, error: typesVerifyError });
-
-      if (typesVerifyError) {
-        throw new Error('Failed to verify product types update');
-      }
-
       setSuccess('Successfully cleared owner account from all products and product types');
       setIsOwnerAccount(false);
+      
+      // Refresh the account status
+      await checkExistingAccount();
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
@@ -264,6 +236,52 @@ export default function StripeConnectPage() {
       setError(err instanceof Error ? err.message : 'Failed to clear owner account');
     } finally {
       setClearing(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete this Stripe account? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setError(null);
+
+      const response = await fetch('/api/stripe/connect/delete-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      console.log('Response:', { status: response.status, data });
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete account');
+      }
+
+      // Clear account from Supabase
+      const { error: deleteError } = await supabase
+        .from('stripe_connect_accounts')
+        .delete();
+
+      if (deleteError) {
+        throw new Error('Failed to delete account from Supabase');
+      }
+
+             setSuccess('Stripe account deleted successfully.');
+       setAccount(null);
+       setIsOwnerAccount(false);
+       
+       // Clear success message after 3 seconds
+       setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error('Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete account');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -379,6 +397,61 @@ export default function StripeConnectPage() {
                           <span className="text-white/60">Connected Account</span>
                         )}
                       </dd>
+                    </div>
+                  </div>
+
+                  {/* Clear Account Button */}
+                  <div className="mt-6 pt-6 border-t border-white/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-white font-medium mb-2">Account Management</h4>
+                        <p className="text-white/60 text-sm">
+                          {isOwnerAccount 
+                            ? "This account is currently set as the owner account for all products."
+                            : "This account is connected but not set as the owner account."
+                          }
+                        </p>
+                      </div>
+                      <div className="flex gap-3">
+                        {isOwnerAccount && (
+                          <Button
+                            onClick={handleClearOwner}
+                            disabled={clearing}
+                            variant="outline"
+                            className="border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                          >
+                            {clearing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Clearing Owner...
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Clear Owner Status
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          onClick={handleDeleteAccount}
+                          disabled={deleting}
+                          variant="outline"
+                          className="border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                        >
+                          {deleting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Delete Account
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

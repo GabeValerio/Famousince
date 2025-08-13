@@ -28,14 +28,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid Stripe Connect account' }, { status: 400 });
     }
 
-    // Call the function to update all products and product types
-    const { error: updateError } = await supabase
-      .rpc('update_owner_stripe_account', {
-        owner_account_id: accountId
-      });
+    // Update all products to use the new owner account
+    const { error: productsError } = await supabase
+      .from('products')
+      .update({ stripe_account_id: accountId })
+      .or(`stripe_account_id.is.null,stripe_account_id.neq.${accountId}`);
 
-    if (updateError) {
-      throw updateError;
+    if (productsError) {
+      console.error('Error updating products:', productsError);
+      throw new Error('Failed to update products');
+    }
+
+    // Update all product_types to use the new owner account
+    const { error: productTypesError } = await supabase
+      .from('product_types')
+      .update({ stripe_account_id: accountId })
+      .or(`stripe_account_id.is.null,stripe_account_id.neq.${accountId}`);
+
+    if (productTypesError) {
+      console.error('Error updating product types:', productTypesError);
+      throw new Error('Failed to update product types');
     }
 
     return NextResponse.json({ success: true });

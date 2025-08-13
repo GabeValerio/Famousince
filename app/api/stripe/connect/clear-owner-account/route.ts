@@ -11,13 +11,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Call the function to clear all products and product types
-    const { error: clearError } = await supabase
-      .rpc('clear_owner_stripe_account');
+    // Clear stripe_account_id from all products
+    const { error: productsError } = await supabase
+      .from('products')
+      .update({ stripe_account_id: null })
+      .neq('stripe_account_id', null);
 
-    if (clearError) {
-      throw clearError;
+    if (productsError) {
+      console.error('Error clearing products:', productsError);
+      throw new Error('Failed to clear products');
     }
+
+    // Clear stripe_account_id from all product_types
+    const { error: productTypesError } = await supabase
+      .from('product_types')
+      .update({ stripe_account_id: null })
+      .neq('stripe_account_id', null);
+
+    if (productTypesError) {
+      console.error('Error clearing product types:', productTypesError);
+      throw new Error('Failed to clear product types');
+    }
+
+    // Optionally, you can also delete the Stripe Connect account from the database
+    // Uncomment the following lines if you want to completely remove the account
+    /*
+    const { error: deleteAccountError } = await supabase
+      .from('stripe_connect_accounts')
+      .delete()
+      .neq('id', 0);
+
+    if (deleteAccountError) {
+      console.error('Error deleting account:', deleteAccountError);
+      throw new Error('Failed to delete Stripe account');
+    }
+    */
 
     return NextResponse.json({ success: true });
   } catch (error) {
