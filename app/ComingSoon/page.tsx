@@ -76,9 +76,17 @@ export default function ComingSoon() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-4">
       <div className="max-w-2xl w-full text-center space-y-8">
+        {/* Famous Since Text */}
+        <h2 
+          className="text-4xl md:text-6xl font-bold mb-2"
+          style={{ fontFamily: 'Chalkduster, fantasy' }}
+        >
+          Famous Since
+        </h2>
+
         {/* Coming Soon Text */}
         <h1 
-          className="text-4xl md:text-6xl font-bold mb-4"
+          className="text-3xl md:text-5xl font-bold mb-4"
           style={{ fontFamily: 'Chalkduster, fantasy' }}
         >
           Coming Soon
