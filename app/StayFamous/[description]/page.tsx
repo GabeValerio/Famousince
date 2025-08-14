@@ -135,22 +135,7 @@ interface LoadingState {
   error: string | null;
 }
 
-interface ProductType {
-  id: string;
-  name: string;
-  active: boolean;
-  images?: ProductTypeImage[];
-  base_price: number;
-  is_default: boolean;
-}
-
-interface ProductTypeImage {
-  id: string;
-  product_type_id: string;
-  image_path: string;
-  vertical_offset: number;
-  is_default_model: boolean;
-}
+import { StayFamousProductType, ProductTypeImage } from '@/types/products';
 
 interface SizeButtonProps {
   size: string;
@@ -237,7 +222,7 @@ function StayFamousContent({ description }: { description: string }) {
   const [shouldWrapBottom, setShouldWrapBottom] = useState(false);
   const [formattedBottomText, setFormattedBottomText] = useState(description);
   const [productSizes, setProductSizes] = useState<Array<{ id: string, size: string }>>([]);
-  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [productTypes, setProductTypes] = useState<StayFamousProductType[]>([]);
   const [selectedModelPath, setSelectedModelPath] = useState<string | null>(null);
   const [selectedVerticalOffset, setSelectedVerticalOffset] = useState(0);
   const [selectedModelTypeId, setSelectedModelTypeId] = useState<string | null>(null);

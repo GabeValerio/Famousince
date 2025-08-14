@@ -5,7 +5,8 @@ import Image from 'next/image';
 import styled from 'styled-components';
 import * as htmlToImage from 'html-to-image';
 import Presets, { TextPreset } from './Presets';
-import ModelSelector, { ProductType } from './ModelSelector';
+import ModelSelector from './ModelSelector';
+import { SimplifiedProductType } from '@/types/products';
 
 // Define fixed dimensions for consistency
 const FIXED_WIDTH = 600;
@@ -251,7 +252,7 @@ const DimensionsDisplay = styled.div`
   white-space: nowrap;
 `;
 
-export default function ImageGenerator({ productTypes = [] }: { productTypes: ProductType[] }) {
+export default function ImageGenerator({ productTypes = [] }: { productTypes: SimplifiedProductType[] }) {
   const [selectedProductType, setSelectedProductType] = useState<string>(productTypes[0]?.id || '');
   const [selectedModel, setSelectedModel] = useState<ModelData | null>(null);
   const [topLine, setTopLine] = useState<TextLine>({

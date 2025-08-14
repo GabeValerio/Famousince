@@ -6,25 +6,9 @@ import { Button } from '@/components/ui/button';
 import { ShoppingBag, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { BrandedProductType, ProductTypeImage } from '@/types/products';
 
-interface ProductType {
-  id: string;
-  name: string;
-  description: string | null;
-  base_price: number;
-  is_branded_item: boolean;
-  active: boolean;
-}
-
-interface ProductTypeImage {
-  id: string;
-  product_type_id: string;
-  image_path: string;
-  vertical_offset: number;
-  is_default_model: boolean;
-}
-
-interface ProductTypeWithImages extends ProductType {
+interface ProductTypeWithImages extends BrandedProductType {
   images: ProductTypeImage[];
 }
 

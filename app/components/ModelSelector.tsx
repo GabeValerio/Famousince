@@ -2,6 +2,7 @@
 
 import styled from 'styled-components';
 import Image from 'next/image';
+import { SimplifiedProductType, ProductTypeImage } from '@/types/products';
 
 const ModelGrid = styled.div`
   display: grid;
@@ -39,25 +40,13 @@ const ModelName = styled.div`
   padding: 0 4px;
 `;
 
-export interface ProductType {
-  id: string;
-  name: string;
-  active: boolean;
-  images?: ProductTypeImage[];
-}
 
-export interface ProductTypeImage {
-  id: string;
-  product_type_id: string;
-  image_path: string;
-  vertical_offset: number;
-}
 
 interface ModelSelectorProps {
   selectedProductType: string;
   selectedModel: string | null;
   onModelSelect: (modelPath: string, verticalOffset: number, productTypeId: string) => void;
-  productTypes: ProductType[];
+  productTypes: SimplifiedProductType[];
 }
 
 export default function ModelSelector({ 

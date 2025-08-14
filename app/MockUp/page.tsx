@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react';
 import ImageGenerator from '@/app/components/ImageGenerator';
 import { supabase } from '@/lib/supabaseClient';
-import { ProductType } from '@/app/components/ModelSelector';
+import { SimplifiedProductType } from '@/types/products';
 
 export default function MockUpPage() {
-  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [productTypes, setProductTypes] = useState<SimplifiedProductType[]>([]);
 
   useEffect(() => {
     const fetchProductTypes = async () => {
       const { data, error } = await supabase
         .from('product_types')
-        .select('id, name, active, images(id, product_type_id, image_path, vertical_offset)')
+        .select('id, name, active, images(id, product_type_id, image_path, vertical_offset, is_default_model)')
         .eq('active', true);
 
       if (error) {

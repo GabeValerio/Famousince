@@ -8,22 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Image from 'next/image';
 import { ProductTypeEditModal } from './components/ProductTypeEditModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
-
-interface ProductType {
-  id: string;
-  name: string;
-  active: boolean;
-  base_price: number;
-  stripe_account_id: string | null;
-  is_default: boolean;
-}
-
-interface ProductTypeImage {
-  id: string;
-  product_type_id: string;
-  image_path: string;
-  vertical_offset: number;
-}
+import { ProductType, ProductTypeImage } from '@/types/products';
 
 interface ProductTypeWithImages extends ProductType {
   images: ProductTypeImage[];

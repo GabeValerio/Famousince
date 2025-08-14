@@ -7,30 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ShoppingCart, Star, Check } from 'lucide-react';
 import { useCart } from '@/lib/CartContext';
 import Image from 'next/image';
-
-interface ProductType {
-  id: string;
-  name: string;
-  description: string | null;
-  base_price: number;
-  is_branded_item: boolean;
-  active: boolean;
-}
-
-interface ProductTypeImage {
-  id: string;
-  product_type_id: string;
-  image_path: string;
-  vertical_offset: number;
-  is_default_model: boolean;
-}
-
-interface ProductSize {
-  id: string;
-  product_type_id: string;
-  size: string;
-  size_order: number;
-}
+import { BrandedProductType, ProductTypeImage, ProductSize } from '@/types/products';
 
 interface ProductVariant {
   id: string;
@@ -61,7 +38,7 @@ export default function BrandedProductPage() {
   const productTypeSlug = params['product-type'] as string;
   const { addToCart } = useCart();
   
-  const [productType, setProductType] = useState<ProductType | null>(null);
+  const [productType, setProductType] = useState<BrandedProductType | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');

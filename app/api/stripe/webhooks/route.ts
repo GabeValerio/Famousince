@@ -73,7 +73,7 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
 
     // Get customer email
     const customer = await stripe.customers.retrieve(subscription.customer as string);
-    const customerEmail = typeof customer === 'object' ? customer.email : null;
+    const customerEmail = customer && 'email' in customer ? customer.email : null;
 
     if (!customerEmail) {
       console.error('No customer email found for subscription:', subscription.id);
@@ -101,8 +101,8 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
         stripe_customer_id: subscription.customer as string,
         price_id: subscription.items.data[0].price.id,
         status: subscription.status,
-        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
+        current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
         cancel_at_period_end: subscription.cancel_at_period_end,
         updated_at: new Date().toISOString()
       }, {
@@ -151,10 +151,10 @@ async function handleSubscriptionDeletion(subscription: Stripe.Subscription) {
 
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
   try {
-    if (!invoice.subscription) return;
+    if (!(invoice as any).subscription) return;
 
     // Check if this is a hosting subscription
-    const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+    const subscription = await stripe.subscriptions.retrieve((invoice as any).subscription as string);
     const isHostingSubscription = subscription.items.data.some(item => 
       item.price.id === 'price_1RisNgDc80868KCRn2gWQR02'
     );
@@ -184,10 +184,10 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
   try {
-    if (!invoice.subscription) return;
+    if (!(invoice as any).subscription) return;
 
     // Check if this is a hosting subscription
-    const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+    const subscription = await stripe.subscriptions.retrieve((invoice as any).subscription as string);
     const isHostingSubscription = subscription.items.data.some(item => 
       item.price.id === 'price_1RisNgDc80868KCRn2gWQR02'
     );

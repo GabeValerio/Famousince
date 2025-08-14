@@ -14,31 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Image from 'next/image';
-
-interface ProductType {
-  id: string;
-  name: string;
-  active: boolean;
-  base_price: number;
-  stripe_account_id: string | null;
-  is_default: boolean;
-  is_branded_item: boolean;
-}
-
-interface ProductTypeImage {
-  id: string;
-  product_type_id: string;
-  image_path: string;
-  vertical_offset: number;
-  is_default_model: boolean;
-}
-
-interface ProductSize {
-  id: string;
-  product_type_id: string;
-  size: string;
-  size_order: number;
-}
+import { ProductType, ProductTypeImage, ProductSize, PendingProductSize } from '@/types/products';
 
 interface ProductTypeEditModalProps {
   isOpen: boolean;
@@ -291,7 +267,7 @@ export const ProductTypeEditModal = ({
         setSizes([...sizes, data]);
       } else {
         // For new product type, add to pending sizes
-        const pendingSize: ProductSize = {
+        const pendingSize: PendingProductSize = {
           id: `pending-${Date.now()}`, // Temporary ID for pending sizes
           product_type_id: '',
           size: newSize.toUpperCase(),
