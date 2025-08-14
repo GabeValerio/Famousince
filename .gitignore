@@ -6,6 +6,7 @@
 !.env.example
 !.env.template
 scripts/env.production
+scripts/config.env.project
 
 # dependencies
 /node_modules

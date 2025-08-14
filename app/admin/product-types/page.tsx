@@ -7,6 +7,7 @@ import { Pencil, Trash2, Box } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Image from 'next/image';
 import { ProductTypeEditModal } from './components/ProductTypeEditModal';
+import { ConfirmationModal } from './components/ConfirmationModal';
 
 interface ProductType {
   id: string;
@@ -35,6 +36,7 @@ export default function ProductTypesPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<ProductType | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProductTypes();
@@ -73,21 +75,24 @@ export default function ProductTypesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this product type? This will also delete all associated sizes and images.')) {
-      return;
-    }
+    setDeleteConfirm(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
 
     try {
       const { error } = await supabase
         .from('product_types')
         .delete()
-        .eq('id', id);
+        .eq('id', deleteConfirm);
 
       if (error) throw error;
 
-      setProductTypes(productTypes.filter(type => type.id !== id));
+      setProductTypes(productTypes.filter(type => type.id !== deleteConfirm));
       setSuccess('Product type deleted successfully!');
       setTimeout(() => setSuccess(null), 2000);
+      setDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting product type:', error);
       setError('Failed to delete product type');
@@ -251,6 +256,17 @@ export default function ProductTypesPage() {
           }}
           editingType={editingType}
           onProductTypeUpdated={handleProductTypeUpdate}
+        />
+
+        <ConfirmationModal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={confirmDelete}
+          title="Delete Product Type"
+          message="Are you sure you want to delete this product type? This will also delete all associated sizes and images."
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmVariant="destructive"
         />
       </div>
     </div>

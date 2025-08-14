@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/authOptions';
+import Stripe from 'stripe';
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
+  apiVersion: "2023-10-16" as Stripe.LatestApiVersion,
+}) : null;
 
 export async function GET() {
   try {
@@ -46,6 +52,25 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid request body. Required: key (string) and value (boolean)' },
         { status: 400 }
       );
+    }
+
+    // Check hosting and Stripe requirements before allowing site deployment
+    if (key === 'deploy_site' && value === true) {
+      const requirements = await checkDeploymentRequirements();
+      
+      if (!requirements.hostingActive) {
+        return NextResponse.json(
+          { error: 'Hosting subscription required. Please subscribe to hosting before deploying your site.' },
+          { status: 400 }
+        );
+      }
+      
+      if (!requirements.stripeSetup) {
+        return NextResponse.json(
+          { error: 'Stripe setup required. Please complete your Stripe Connect account setup before deploying your site.' },
+          { status: 400 }
+        );
+      }
     }
 
     // First check if the config exists
@@ -102,21 +127,80 @@ export async function POST(request: NextRequest) {
     }
 
     let message = 'Configuration updated successfully';
+    
+    // Special handling for deploy_site
     if (key === 'deploy_site') {
-      message = value 
-        ? '🚀 Site is now LIVE! Visitors will see the main website.'
-        : '🚧 Site is now in Coming Soon mode. Visitors will be redirected to the Coming Soon page.';
+      if (value) {
+        message = '🚀 Site is now LIVE! Visitors will see the main website.';
+      } else {
+        message = '🚧 Site is now in Coming Soon mode. Visitors will be redirected to the Coming Soon page.';
+      }
     }
 
     return NextResponse.json({ 
-      data,
-      message
+      message,
+      data: {
+        id: data.id,
+        key: data.key,
+        value: data.value,
+        description: data.description,
+        updated_at: data.updated_at
+      }
     });
-
   } catch (error) {
+    console.error('Error updating site config:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+// Helper function to check deployment requirements
+async function checkDeploymentRequirements() {
+  try {
+    // Check hosting subscription status
+    let hostingActive = false;
+    try {
+      // This would need to be implemented based on your hosting subscription tracking
+      // For now, we'll check if there's an active subscription in your database
+      // You may need to create a subscriptions table or use Stripe webhooks to track this
+      const { data: subscriptionData } = await supabase
+        .from('subscriptions') // You'll need to create this table
+        .select('status')
+        .eq('status', 'active')
+        .single();
+      
+      hostingActive = !!subscriptionData;
+    } catch (error) {
+      // If table doesn't exist or no subscription found, hosting is not active
+      hostingActive = false;
+    }
+
+    // Check Stripe Connect account status
+    let stripeSetup = false;
+    try {
+      if (stripe) {
+        const { data: accountData } = await supabase
+          .from('stripe_connect_accounts')
+          .select('account_id, onboarding_complete')
+          .single();
+        
+        if (accountData?.account_id && accountData?.onboarding_complete) {
+          // Double-check with Stripe API
+          const stripeAccount = await stripe.accounts.retrieve(accountData.account_id);
+          stripeSetup = stripeAccount.charges_enabled && 
+                       stripeAccount.payouts_enabled && 
+                       stripeAccount.details_submitted;
+        }
+      }
+    } catch (error) {
+      stripeSetup = false;
+    }
+
+    return { hostingActive, stripeSetup };
+  } catch (error) {
+    console.error('Error checking deployment requirements:', error);
+    return { hostingActive: false, stripeSetup: false };
   }
 } 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarContext';
 import { cn } from '@/lib/utils';
-import { Home, Store, Layers, Settings, CreditCard, Package, Server, ShoppingCart } from 'lucide-react';
+import { Home, Store, Layers, Settings, CreditCard, Package, Server, ShoppingCart, Users } from 'lucide-react';
 
 export function AdminNav() {
   const pathname = usePathname();
@@ -50,6 +50,11 @@ export function AdminNav() {
       title: "Site Config",
       href: "/admin/site-config",
       icon: <Settings className="h-4 w-4" />,
+    },
+    {
+      title: "Waitlist",
+      href: "/admin/waitlist",
+      icon: <Users className="h-4 w-4" />,
     },
   ];
 

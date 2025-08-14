@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Plus, X, GripVertical, Upload } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, GripVertical, Upload, CreditCard } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -22,6 +22,7 @@ interface ProductType {
   base_price: number;
   stripe_account_id: string | null;
   is_default: boolean;
+  is_branded_item: boolean;
 }
 
 interface ProductTypeImage {
@@ -57,6 +58,7 @@ export const ProductTypeEditModal = ({
   const [basePrice, setBasePrice] = useState(editingType?.base_price || 0);
   const [stripeAccountId, setStripeAccountId] = useState(editingType?.stripe_account_id || '');
   const [isDefault, setIsDefault] = useState(editingType?.is_default ?? false);
+  const [isBrandedItem, setIsBrandedItem] = useState(editingType?.is_branded_item ?? false);
   const [images, setImages] = useState<ProductTypeImage[]>([]);
   const [newImagePath, setNewImagePath] = useState('');
   const [newVerticalOffset, setNewVerticalOffset] = useState(0);
@@ -66,6 +68,9 @@ export const ProductTypeEditModal = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [stripeAccounts, setStripeAccounts] = useState<Array<{ id: string; business_profile: { name: string } }>>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [showAccountsModal, setShowAccountsModal] = useState(false);
 
   useEffect(() => {
     if (editingType) {
@@ -74,17 +79,47 @@ export const ProductTypeEditModal = ({
       setBasePrice(editingType.base_price || 0);
       setStripeAccountId(editingType.stripe_account_id || '');
       setIsDefault(editingType.is_default ?? false);
+      setIsBrandedItem(editingType.is_branded_item ?? false);
       fetchImages(editingType.id);
       fetchSizes(editingType.id);
     } else {
-      setImages([]);
-      setSizes([]);
+      // Reset all form fields for new product type
+      setName('');
       setActive(true);
       setBasePrice(0);
       setStripeAccountId('');
       setIsDefault(false);
+      setIsBrandedItem(false);
+      setImages([]);
+      setSizes([]);
+      setNewImagePath('');
+      setNewVerticalOffset(0);
+      setNewSize('');
+      setError(null);
+      setSuccess(null);
     }
   }, [editingType]);
+
+  // Additional cleanup effect when modal opens/closes
+  useEffect(() => {
+    if (isOpen && !editingType) {
+      // Ensure form is completely reset when opening for new product type
+      setName('');
+      setActive(true);
+      setBasePrice(0);
+      setStripeAccountId('');
+      setIsDefault(false);
+      setIsBrandedItem(false);
+      setImages([]);
+      setSizes([]);
+      setNewImagePath('');
+      setNewVerticalOffset(0);
+      setNewSize('');
+      setError(null);
+      setSuccess(null);
+      setShowAccountsModal(false);
+    }
+  }, [isOpen, editingType]);
 
   const fetchImages = async (productTypeId: string) => {
     try {
@@ -117,23 +152,62 @@ export const ProductTypeEditModal = ({
     }
   };
 
+  const fetchStripeAccounts = async () => {
+    try {
+      setIsLoadingAccounts(true);
+      const response = await fetch('/api/stripe/connected-accounts');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch Stripe accounts');
+      }
+      
+      const data = await response.json();
+      setStripeAccounts(data.accounts || []);
+    } catch (error) {
+      console.error('Error fetching Stripe accounts:', error);
+      setError('Failed to fetch Stripe accounts');
+    } finally {
+      setIsLoadingAccounts(false);
+    }
+  };
+
+  const handleSelectStripeAccount = (accountId: string) => {
+    setStripeAccountId(accountId);
+    setShowAccountsModal(false);
+  };
+
   const handleAddImage = async () => {
-    if (!newImagePath.trim() || !editingType) return;
+    if (!newImagePath.trim()) return;
 
     try {
-      const { data, error } = await supabase
-        .from('product_type_images')
-        .insert([{
-          product_type_id: editingType.id,
+      if (editingType) {
+        // For existing product type, insert directly
+        const { data, error } = await supabase
+          .from('product_type_images')
+          .insert([{
+            product_type_id: editingType.id,
+            image_path: newImagePath,
+            vertical_offset: newVerticalOffset
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setImages([...images, data]);
+      } else {
+        // For new product type, add to pending images
+        const pendingImage: ProductTypeImage = {
+          id: `pending-${Date.now()}`, // Temporary ID for pending images
+          product_type_id: '',
           image_path: newImagePath,
-          vertical_offset: newVerticalOffset
-        }])
-        .select()
-        .single();
+          vertical_offset: newVerticalOffset,
+          is_default_model: false
+        };
 
-      if (error) throw error;
+        setImages([...images, pendingImage]);
+      }
 
-      setImages([...images, data]);
       setNewImagePath('');
       setNewVerticalOffset(0);
     } catch (error) {
@@ -144,6 +218,13 @@ export const ProductTypeEditModal = ({
 
   const handleDeleteImage = async (imageId: string) => {
     try {
+      // If it's a pending image (starts with 'pending-'), just remove from state
+      if (imageId.startsWith('pending-')) {
+        setImages(images.filter(img => img.id !== imageId));
+        return;
+      }
+
+      // Otherwise, delete from database
       const { error } = await supabase
         .from('product_type_images')
         .delete()
@@ -160,6 +241,15 @@ export const ProductTypeEditModal = ({
 
   const handleUpdateImage = async (imageId: string, updates: Partial<ProductTypeImage>) => {
     try {
+      // If it's a pending image, just update the state
+      if (imageId.startsWith('pending-')) {
+        setImages(images.map(img => 
+          img.id === imageId ? { ...img, ...updates } : img
+        ));
+        return;
+      }
+
+      // Otherwise, update in database
       const { error } = await supabase
         .from('product_type_images')
         .update(updates)
@@ -177,26 +267,40 @@ export const ProductTypeEditModal = ({
   };
 
   const handleAddSize = async () => {
-    if (!newSize.trim() || !editingType) return;
+    if (!newSize.trim()) return;
 
     try {
       const nextOrder = sizes.length > 0 
         ? Math.max(...sizes.map(s => s.size_order)) + 1 
         : 1;
 
-      const { data, error } = await supabase
-        .from('product_sizes')
-        .insert([{
-          product_type_id: editingType.id,
+      if (editingType) {
+        // For existing product type, insert directly
+        const { data, error } = await supabase
+          .from('product_sizes')
+          .insert([{
+            product_type_id: editingType.id,
+            size: newSize.toUpperCase(),
+            size_order: nextOrder
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setSizes([...sizes, data]);
+      } else {
+        // For new product type, add to pending sizes
+        const pendingSize: ProductSize = {
+          id: `pending-${Date.now()}`, // Temporary ID for pending sizes
+          product_type_id: '',
           size: newSize.toUpperCase(),
           size_order: nextOrder
-        }])
-        .select()
-        .single();
+        };
 
-      if (error) throw error;
+        setSizes([...sizes, pendingSize]);
+      }
 
-      setSizes([...sizes, data]);
       setNewSize('');
     } catch (error) {
       console.error('Error adding size:', error);
@@ -206,6 +310,13 @@ export const ProductTypeEditModal = ({
 
   const handleDeleteSize = async (sizeId: string) => {
     try {
+      // If it's a pending size (starts with 'pending-'), just remove from state
+      if (sizeId.startsWith('pending-')) {
+        setSizes(sizes.filter(size => size.id !== sizeId));
+        return;
+      }
+
+      // Otherwise, delete from database
       const { error } = await supabase
         .from('product_sizes')
         .delete()
@@ -225,24 +336,101 @@ export const ProductTypeEditModal = ({
     setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase
-        .from('product_types')
-        .update({
-          name: name,
-          active: active,
-          base_price: basePrice,
-          stripe_account_id: stripeAccountId || null,
-          is_default: isDefault,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingType?.id);
+      let productTypeId: string;
 
-      if (error) throw error;
+      if (editingType) {
+        // Update existing product type
+        const { data, error } = await supabase
+          .from('product_types')
+          .update({
+            name: name,
+            active: active,
+            base_price: basePrice,
+            stripe_account_id: stripeAccountId || null,
+            is_default: isDefault,
+            is_branded_item: isBrandedItem,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingType.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        productTypeId = editingType.id;
+      } else {
+        // Create new product type
+        const { data, error } = await supabase
+          .from('product_types')
+          .insert([{
+            name: name,
+            active: active,
+            base_price: basePrice,
+            stripe_account_id: stripeAccountId || null,
+            is_default: isDefault,
+            is_branded_item: isBrandedItem,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        productTypeId = data.id;
+      }
+
+      // Now add any pending images and sizes
+      if (productTypeId) {
+        console.log('Product type created/updated with ID:', productTypeId);
+        console.log('Images to process:', images);
+        console.log('Sizes to process:', sizes);
+        
+        // Add pending images
+        for (const image of images) {
+          if (image.id.startsWith('pending-')) { // This is a pending image
+            console.log('Saving pending image:', image);
+            const { error: imageError } = await supabase
+              .from('product_type_images')
+              .insert([{
+                product_type_id: productTypeId,
+                image_path: image.image_path,
+                vertical_offset: image.vertical_offset,
+                is_default_model: image.is_default_model || false
+              }]);
+            
+            if (imageError) {
+              console.error('Error saving pending image:', imageError);
+              throw new Error(`Failed to save image: ${imageError.message}`);
+            }
+            console.log('Pending image saved successfully');
+          }
+        }
+
+        // Add pending sizes
+        for (const size of sizes) {
+          if (size.id.startsWith('pending-')) { // This is a pending size
+            console.log('Saving pending size:', size);
+            const { error: sizeError } = await supabase
+              .from('product_sizes')
+              .insert([{
+                product_type_id: productTypeId,
+                size: size.size,
+                size_order: size.size_order
+              }]);
+            
+            if (sizeError) {
+              console.error('Error saving pending size:', sizeError);
+              throw new Error(`Failed to save size: ${sizeError.message}`);
+            }
+            console.log('Pending size saved successfully');
+          }
+        }
+      }
 
       onProductTypeUpdated();
       onClose();
     } catch (error) {
-      setError('Failed to update product type');
+      console.error('Error saving product type:', error);
+      setError('Failed to save product type');
     } finally {
       setIsSubmitting(false);
     }
@@ -250,8 +438,11 @@ export const ProductTypeEditModal = ({
 
   const resetForm = () => {
     setName('');
+    setActive(true);
     setBasePrice(0);
     setStripeAccountId('');
+    setIsDefault(false);
+    setIsBrandedItem(false);
     setImages([]);
     setNewImagePath('');
     setNewVerticalOffset(0);
@@ -260,11 +451,12 @@ export const ProductTypeEditModal = ({
     setError(null);
     setSuccess(null);
     setIsSubmitting(false);
+    setShowAccountsModal(false);
     onClose();
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0] || !editingType) return;
+    if (!e.target.files || !e.target.files[0]) return;
     
     const file = e.target.files[0];
     setIsUploading(true);
@@ -287,22 +479,39 @@ export const ProductTypeEditModal = ({
 
       const data = await response.json();
       
-      // Add the uploaded image to the product type
-      const { error: supabaseError } = await supabase
-        .from('product_type_images')
-        .insert([{
-          product_type_id: editingType.id,
+      if (editingType) {
+        // For existing product type, insert directly
+        const { error: supabaseError } = await supabase
+          .from('product_type_images')
+          .insert([{
+            product_type_id: editingType.id,
+            image_path: data.secure_url,
+            vertical_offset: 0
+          }])
+          .select()
+          .single();
+
+        if (supabaseError) throw supabaseError;
+
+        // Refresh images
+        await fetchImages(editingType.id);
+        setSuccess('Image uploaded successfully');
+      } else {
+        // For new product type, add to pending images
+        const pendingImage: ProductTypeImage = {
+          id: `pending-${Date.now()}`,
+          product_type_id: '',
           image_path: data.secure_url,
-          vertical_offset: 0
-        }])
-        .select()
-        .single();
+          vertical_offset: 0,
+          is_default_model: false
+        };
 
-      if (supabaseError) throw supabaseError;
-
-      // Refresh images
-      await fetchImages(editingType.id);
-      setSuccess('Image uploaded successfully');
+        console.log('Adding pending image:', pendingImage);
+        console.log('Current images state:', images);
+        setImages([...images, pendingImage]);
+        setSuccess('Image uploaded successfully');
+        console.log('Images state after adding:', [...images, pendingImage]);
+      }
     } catch (error) {
       console.error('Error uploading image:', error);
       setError(error instanceof Error ? error.message : 'Failed to upload image');
@@ -320,7 +529,7 @@ export const ProductTypeEditModal = ({
       <div className="bg-black border border-white/20 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-white">
-            {editingType ? 'Edit Product Type' : 'New Product Type'}
+            {editingType ? 'Edit Product Type' : 'Create New Product Type'}
           </h2>
           <Button variant="ghost" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -364,13 +573,32 @@ export const ProductTypeEditModal = ({
             <label className="block text-sm font-medium text-white mb-2">
               Stripe Connected Account ID
             </label>
-            <Input
-              type="text"
-              value={stripeAccountId}
-              onChange={(e) => setStripeAccountId(e.target.value)}
-              className="bg-black/40 border-white/20 text-white"
-              placeholder="acct_..."
-            />
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={stripeAccountId}
+                onChange={(e) => setStripeAccountId(e.target.value)}
+                className="bg-black/40 border-white/20 text-white"
+                placeholder="acct_..."
+              />
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowAccountsModal(true);
+                  fetchStripeAccounts();
+                }}
+                variant="outline"
+                className="border-white/20 bg-white/10 text-white hover:bg-white/20 whitespace-nowrap"
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Select Account
+              </Button>
+            </div>
+            {stripeAccountId && (
+              <p className="text-sm text-white/60 mt-1">
+                Selected: {stripeAccountId}
+              </p>
+            )}
           </div>
 
           <div>
@@ -398,6 +626,18 @@ export const ProductTypeEditModal = ({
           </div>
 
           <div>
+            <label className="flex items-center space-x-2 text-sm font-medium text-white">
+              <input
+                type="checkbox"
+                checked={isBrandedItem}
+                onChange={(e) => setIsBrandedItem(e.target.checked)}
+                className="rounded border-white/20 bg-black/40"
+              />
+              <span>Branded Item (No unique famous moments - general merchandise like keychains, stickers)</span>
+            </label>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-white/80 mb-2">Model Images</label>
             <div className="space-y-4">
               {/* Add image upload button */}
@@ -407,16 +647,16 @@ export const ProductTypeEditModal = ({
                     type="file"
                     accept="image/*"
                     onChange={handleImageUpload}
-                    disabled={isUploading || !editingType}
+                    disabled={isUploading}
                     className="hidden"
                     id="imageUpload"
                   />
                   <label 
                     htmlFor="imageUpload" 
-                    className={`w-full flex items-center justify-center px-4 py-2 rounded-md cursor-pointer
-                      ${isUploading || !editingType 
-                        ? 'bg-white/10 text-white/50' 
-                        : 'bg-white/10 border-dashed border-2 border-white/20 text-white hover:bg-white/20'}`}
+                                          className={`w-full flex items-center justify-center px-4 py-2 rounded-md cursor-pointer
+                        ${isUploading 
+                          ? 'bg-white/10 text-white/50' 
+                          : 'bg-white/10 border-dashed border-2 border-white/20 text-white hover:bg-white/20'}`}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     <span>{isUploading ? 'Uploading...' : 'Upload Image'}</span>
@@ -607,6 +847,67 @@ export const ProductTypeEditModal = ({
           )}
         </form>
       </div>
+
+      {/* Stripe Accounts Selection Modal */}
+      {showAccountsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-black border border-white/20 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-semibold text-white">
+                Select Stripe Connected Account
+              </h3>
+              <Button variant="ghost" onClick={() => setShowAccountsModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {isLoadingAccounts ? (
+              <div className="text-center py-8">
+                <div className="text-white/60">Loading accounts...</div>
+              </div>
+            ) : stripeAccounts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-white/60 mb-4">No connected accounts found</div>
+                <p className="text-sm text-white/40">
+                  Make sure you have connected Stripe accounts in your dashboard.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {stripeAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="p-3 border border-white/20 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+                    onClick={() => handleSelectStripeAccount(account.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-white font-medium">
+                          {account.business_profile?.name || 'Unnamed Account'}
+                        </div>
+                        <div className="text-sm text-white/60 font-mono">
+                          {account.id}
+                        </div>
+                      </div>
+                      <CreditCard className="h-4 w-4 text-white/40" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowAccountsModal(false)}
+                className="bg-black/40 border-white/20 text-white hover:bg-black/60"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }; 

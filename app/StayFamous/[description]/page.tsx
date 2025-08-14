@@ -268,6 +268,7 @@ function StayFamousContent({ description }: { description: string }) {
         .from('product_types')
         .select('*')
         .eq('active', true)
+        .eq('is_branded_item', false)
         .order('name');
 
       if (typesError) throw typesError;

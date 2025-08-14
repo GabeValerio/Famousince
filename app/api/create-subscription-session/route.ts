@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ sessionUrl: session.url });
+    return NextResponse.json({ sessionId: session.id, sessionUrl: session.url });
   } catch (error) {
     console.error("Error creating subscription session:", error);
     return NextResponse.json({ 

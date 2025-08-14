@@ -137,6 +137,27 @@ const ProductManagement: React.FC = () => {
     return productType?.name || 'Loading...';
   };
 
+  // Get product type info
+  const getProductType = (productTypeId: string) => {
+    return productTypes.find(type => type.id === productTypeId);
+  };
+
+  // Get appropriate link for product
+  const getProductLink = (product: ProductWithType) => {
+    const productType = getProductType(product.product_type_id);
+    
+    if (!productType) return '#';
+    
+    if (productType.is_branded_item) {
+      // For branded items, link to branded shop
+      const productTypeSlug = productType.name.toLowerCase().replace(/\s+/g, '-');
+      return `/shop/branded/${productTypeSlug}`;
+    } else {
+      // For custom products, link to StayFamous page
+      return product.description ? `/StayFamous/${encodeURIComponent(product.description)}` : '#';
+    }
+  };
+
   const handleDeleteProduct = async () => {
     if (!deleteConfirm) return;
     setIsDeleting(true);
@@ -252,7 +273,14 @@ const ProductManagement: React.FC = () => {
 
                 {/* Content */}
                 <div className="flex-grow min-w-0">
-                  <h3 className="font-medium text-white truncate">{product.name}</h3>
+                  <h3 className="font-medium text-white truncate">
+                    <Link 
+                      href={getProductLink(product)}
+                      className="hover:text-white hover:underline transition-colors"
+                    >
+                      {product.name}
+                    </Link>
+                  </h3>
                   <p className="text-xs text-white/60 mt-1 flex items-center">
                     <Tag className="h-3 w-3 mr-1" /> ${product.base_price.toFixed(2)}
                   </p>
@@ -276,12 +304,7 @@ const ProductManagement: React.FC = () => {
                     {product.description && (
                       <div>
                         <p className="text-xs font-medium text-white/60 uppercase mb-1">Description</p>
-                        <Link 
-                          href={`/StayFamous/${encodeURIComponent(product.description)}`}
-                          className="text-sm text-white/80 hover:text-white hover:underline transition-colors"
-                        >
-                          {product.description}
-                        </Link>
+                        <p className="text-sm text-white/80">{product.description}</p>
                       </div>
                     )}
                     
@@ -394,16 +417,16 @@ const ProductManagement: React.FC = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium text-white">{product.name}</TableCell>
+                    <TableCell className="font-medium text-white">
+                      <Link 
+                        href={getProductLink(product)}
+                        className="hover:text-white hover:underline transition-colors"
+                      >
+                        {product.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="max-w-xs truncate text-white/80">
-                      {product.description ? (
-                        <Link 
-                          href={`/StayFamous/${encodeURIComponent(product.description)}`}
-                          className="hover:text-white hover:underline transition-colors"
-                        >
-                          {product.description}
-                        </Link>
-                      ) : null}
+                      {product.description || 'No description'}
                     </TableCell>
                     <TableCell className="text-white">${product.base_price.toFixed(2)}</TableCell>
                     <TableCell className="text-white/80">{product.application}</TableCell>

@@ -21,7 +21,9 @@ export default function HostingPage() {
       }
 
       // Initialize Stripe only when needed
-      const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+      const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY;
+      console.log('Stripe publishable key:', publishableKey ? 'Found' : 'Missing');
+      
       if (!publishableKey) {
         throw new Error('Stripe configuration is missing. Please contact support.');
       }
@@ -30,8 +32,10 @@ export default function HostingPage() {
       if (!stripe) {
         throw new Error('Failed to initialize Stripe. Please try again.');
       }
+      
+      console.log('Stripe initialized successfully');
 
-      // Create subscription session
+      // Create subscription session for hosting
       const response = await fetch('/api/create-subscription-session', {
         method: 'POST',
         headers: {
@@ -39,23 +43,35 @@ export default function HostingPage() {
         },
         body: JSON.stringify({
           email: session.user.email,
+          priceId: 'price_1RisNgDc80868KCRn2gWQR02', // GetValerio Monthly Hosting price ID
+          productName: 'GetValerio Monthly Hosting',
+          productDescription: 'Premium hosting service with dedicated domain and full control'
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('API Error Response:', errorData);
         throw new Error(errorData.error || 'Failed to create subscription session');
       }
 
-      const { sessionId } = await response.json();
+      const responseData = await response.json();
+      console.log('API Response:', responseData);
       
-      // Redirect to Stripe Checkout
-      const result = await stripe.redirectToCheckout({
-        sessionId,
-      });
+      const { sessionId, sessionUrl } = responseData;
+      
+      if (sessionUrl) {
+        // Redirect to Stripe Checkout using the session URL
+        window.location.href = sessionUrl;
+      } else {
+        // Fallback to redirectToCheckout if sessionUrl is not available
+        const result = await stripe.redirectToCheckout({
+          sessionId,
+        });
 
-      if (result.error) {
-        throw new Error(result.error.message);
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
       }
     } catch (error) {
       console.error('Subscription error:', error);

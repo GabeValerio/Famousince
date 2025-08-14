@@ -1,6 +1,11 @@
 export type ProductType = {
   id: string;
   name: string;
+  active: boolean;
+  base_price: number;
+  stripe_account_id: string | null;
+  is_default: boolean;
+  is_branded_item: boolean;
   created_at: string;
   updated_at: string;
 };
